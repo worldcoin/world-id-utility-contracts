@@ -1,7 +1,13 @@
 [profile.default]
 src = "src"
+test = "test"
 out = "out"
 libs = ["lib"]
+remappings = [
+    "@world-id-core/=lib/world-id-protocol/contracts/src/core/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/"
+]
 
 # Do _not_ change any of these fields
 solc = "0.8.28"
