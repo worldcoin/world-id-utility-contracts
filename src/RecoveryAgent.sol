@@ -43,6 +43,9 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
     /// @dev Thrown when attempting to remove a signer that is not authorized.
     error SignerNotAuthorized(address signer);
 
+    /// @dev Thrown when attempting to renounce ownership, which is disabled for this contract.
+    error RenounceOwnershipDisabled();
+
     ////////////////////////////////////////////////////////////
     //                        Modifiers                       //
     ////////////////////////////////////////////////////////////
@@ -151,6 +154,10 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
     function removeSigner(address signer) external onlyOwner onlyProxy onlyInitialized {
         if (!_signers.remove(signer)) revert SignerNotAuthorized(signer);
         emit SignerRemoved(signer);
+    }
+
+    function renounceOwnership() public view override onlyOwner onlyProxy onlyInitialized {
+        revert RenounceOwnershipDisabled();
     }
 
     /// @notice Is called when upgrading the contract to check whether it should be performed.
