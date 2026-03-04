@@ -26,8 +26,7 @@ contract DeployRecoveryAgent is Deploy {
         console2.log("  implementation:   ", recoveryAgentImplAddress);
 
         bytes memory initData = abi.encodeCall(RecoveryAgent.initialize, ());
-        bytes memory initCode =
-            abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(implementation, initData));
+        bytes memory initCode = abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(implementation, initData));
         console2.log("  proxy init code hash:");
         console2.logBytes32(keccak256(initCode));
 
