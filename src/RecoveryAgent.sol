@@ -4,19 +4,10 @@ pragma solidity ^0.8.13;
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
-import {NoncesUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/NoncesUpgradeable.sol";
 import {IERC1271} from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
-contract RecoveryAgent is
-    Initializable,
-    Ownable2StepUpgradeable,
-    UUPSUpgradeable,
-    EIP712Upgradeable,
-    NoncesUpgradeable,
-    IERC1271
-{
+contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IERC1271 {
     ////////////////////////////////////////////////////////////
     //                         Events                         //
     ////////////////////////////////////////////////////////////
@@ -85,9 +76,7 @@ contract RecoveryAgent is
 
     function initialize() public initializer {
         __Ownable_init(msg.sender); // `OwnableUpgradeable` delegation
-        __Nonces_init();
         __Ownable2Step_init();
-        __EIP712_init(EIP712_NAME, EIP712_VERSION);
     }
 
     ////////////////////////////////////////////////////////////
