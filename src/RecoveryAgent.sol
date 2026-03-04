@@ -80,7 +80,7 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
     /// @dev The set of authorized signers that can sign on behalf of the contract.
     EnumerableSet.AddressSet private _signers;
 
-    uint256[50] private __gap;
+    uint256[48] private __gap;
 
     ////////////////////////////////////////////////////////////
     //                       Constructor                      //

@@ -38,8 +38,7 @@ abstract contract Deploy is Script {
 
         vm.startBroadcast();
 
-        _deployer = new Create2Deployer{salt: bytes32(0)}();
-        console2.log("Create2Deployer:", address(_deployer));
+        _ensureDeployer();
 
         _run(config);
         _acceptOwnership();
@@ -72,6 +71,21 @@ abstract contract Deploy is Script {
         string memory path = string.concat(dir, "/", env, ".json");
         vm.writeJson(json, path);
         console2.log("Deployment written to", path);
+    }
+
+    /// @notice Reuses an existing Create2Deployer or deploys a new one.
+    /// @dev Set CREATE2_DEPLOYER env var to reuse a previously deployed instance.
+    function _ensureDeployer() internal {
+        address existing = vm.envOr("CREATE2_DEPLOYER", address(0));
+
+        if (existing != address(0)) {
+            _deployer = Create2Deployer(existing);
+            console2.log("Create2Deployer found at:", existing);
+            return;
+        }
+
+        _deployer = new Create2Deployer{salt: bytes32(0)}();
+        console2.log("Create2Deployer deployed:", address(_deployer));
     }
 
     /// @notice Deploy a contract via CREATE2 through the deployer helper.

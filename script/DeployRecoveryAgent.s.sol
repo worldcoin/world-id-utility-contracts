@@ -21,12 +21,20 @@ contract DeployRecoveryAgent is Deploy {
         console2.log("  proxy salt:       ");
         console2.logBytes32(salt);
 
-        RecoveryAgent implementation = new RecoveryAgent{salt: bytes32(uint256(1))}();
-        recoveryAgentImplAddress = address(implementation);
-        console2.log("  implementation:   ", recoveryAgentImplAddress);
+        address existingImpl = vm.envOr("RECOVERY_AGENT_IMPL", address(0));
+
+        if (existingImpl != address(0)) {
+            recoveryAgentImplAddress = existingImpl;
+            console2.log("  implementation:   ", existingImpl, "(existing)");
+        } else {
+            RecoveryAgent implementation = new RecoveryAgent{salt: bytes32(uint256(1))}();
+            recoveryAgentImplAddress = address(implementation);
+            console2.log("  implementation:   ", recoveryAgentImplAddress);
+        }
 
         bytes memory initData = abi.encodeCall(RecoveryAgent.initialize, ());
-        bytes memory initCode = abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(implementation, initData));
+        bytes memory initCode =
+            abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(recoveryAgentImplAddress, initData));
         console2.log("  proxy init code hash:");
         console2.logBytes32(keccak256(initCode));
 
