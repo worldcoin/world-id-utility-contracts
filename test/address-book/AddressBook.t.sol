@@ -249,6 +249,19 @@ contract AddressBookTest is Test {
         assertTrue(addressBook.verify(epoch, user1));
     }
 
+    function testGuardDisabledRejectsPastPeriod() public {
+        addressBook.setEnforceCurrentOrNextPeriod(false);
+        vm.warp(block.timestamp + PERIOD_LENGTH_SECONDS);
+
+        uint32 currentPeriod = addressBook.getCurrentPeriod();
+        uint32 pastPeriod = currentPeriod - 1;
+        IAddressBook.EpochData memory epoch = _epoch();
+
+        vm.expectRevert(abi.encodeWithSelector(IAddressBook.InvalidTargetPeriod.selector, pastPeriod, currentPeriod));
+        vm.prank(user1);
+        addressBook.register(user1, pastPeriod, epoch, _proof(443));
+    }
+
     function testRegisterRevertsWhenExpiresBeforeTargetPeriodEnd() public {
         uint32 currentPeriod = addressBook.getCurrentPeriod();
         IAddressBook.EpochData memory epoch = _epoch();

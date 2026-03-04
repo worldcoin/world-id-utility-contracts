@@ -120,6 +120,7 @@ contract AddressBook is WorldIDBase, IAddressBook {
         onlyInitialized
         returns (bool)
     {
+        // AddressBook lookups are action-scoped; period is not part of epochId.
         bytes32 epochId = _computeEpochId(epoch.action);
         return _epochAddressRegistered[epochId][account];
     }
@@ -209,6 +210,10 @@ contract AddressBook is WorldIDBase, IAddressBook {
         virtual
     {
         uint32 currentPeriod = _getCurrentPeriod();
+
+        if (targetPeriod < currentPeriod) {
+            revert InvalidTargetPeriod(targetPeriod, currentPeriod);
+        }
 
         if (_enforceCurrentOrNextPeriod) {
             // Compare "next period" in uint256 space to avoid uint32 overflow when currentPeriod == type(uint32).max.

@@ -83,7 +83,8 @@ interface IAddressBook {
     function verify(EpochData calldata epoch, address account) external view returns (bool);
 
     /**
-     * @notice Raw lookup for an explicit period.
+     * @notice Raw action-scoped lookup for an account in this context.
+     * @dev `period` is accepted for interface compatibility and does not affect the lookup key.
      */
     function isRegisteredForPeriod(uint32 period, EpochData calldata epoch, address account)
         external
