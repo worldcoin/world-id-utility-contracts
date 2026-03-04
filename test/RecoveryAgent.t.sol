@@ -45,17 +45,17 @@ contract RecoveryAgentTest is Test {
     ////////////////////////////////////////////////////////////
 
     function test_addSigner() public {
-        agent.updateSigner(signer, true);
         vm.expectEmit(true, false, false, false, address(agent));
         emit RecoveryAgent.SignerAuthorized(signer);
+        agent.updateSigner(signer, true);
         assertTrue(agent.isAuthorizedSigner(signer));
     }
 
     function test_removeSigner() public {
         agent.updateSigner(signer, true);
-        agent.updateSigner(signer, false);
         vm.expectEmit(true, false, false, false, address(agent));
         emit RecoveryAgent.SignerUnauthorized(signer);
+        agent.updateSigner(signer, false);
         assertFalse(agent.isAuthorizedSigner(signer));
     }
 

@@ -15,15 +15,18 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
     /// @notice Emitted when a signer is authorized (usually added).
     event SignerAuthorized(address indexed signer);
 
-    /// @notice Emitted when a signer is not authorized (usually a revokation).
+    /// @notice Emitted when a signer is not authorized (usually a revocation).
     event SignerUnauthorized(address indexed signer);
 
     ////////////////////////////////////////////////////////////
     //                         Errors                         //
     ////////////////////////////////////////////////////////////
 
-    /// @notice Thrown when a function is called on an uninitialized implementation.
+    /// @dev Thrown when a function is called on an uninitialized implementation.
     error ImplementationNotInitialized();
+
+    /// @dev Thrown when attempting to set an address parameter to the zero address.
+    error ZeroAddress();
 
     ////////////////////////////////////////////////////////////
     //                        Modifiers                       //
@@ -47,9 +50,6 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
     //                        Constants                       //
     ////////////////////////////////////////////////////////////
 
-    string public constant EIP712_NAME = "RecoveryAgent";
-    string public constant EIP712_VERSION = "1.0";
-
     // @dev ERC-1271 magic value https://eips.ethereum.org/EIPS/eip-1271
     // bytes4(keccak256("isValidSignature(bytes32,bytes)")
     bytes4 internal constant _MAGICVALUE = 0x1626ba7e;
@@ -64,6 +64,8 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
 
     /// @dev The list of authorized signers that can sign on behalf of the contract. Using a mapping for O(1) lookups.
     mapping(address => bool) internal _isAuthorizedSigner;
+
+    uint256[50] private __gap;
 
     ////////////////////////////////////////////////////////////
     //                       Constructor                      //
@@ -114,6 +116,10 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
     ////////////////////////////////////////////////////////////
 
     function updateSigner(address signer, bool isAuthorized) external onlyOwner onlyProxy onlyInitialized {
+        if (signer == address(0)) {
+            revert ZeroAddress();
+        }
+
         _isAuthorizedSigner[signer] = isAuthorized;
         if (isAuthorized) {
             emit SignerAuthorized(signer);
