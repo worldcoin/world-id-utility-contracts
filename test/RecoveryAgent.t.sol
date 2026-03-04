@@ -41,34 +41,57 @@ contract RecoveryAgentTest is Test {
     }
 
     ////////////////////////////////////////////////////////////
-    //                      updateSigner                      //
+    //                       addSigner                        //
     ////////////////////////////////////////////////////////////
 
     function test_addSigner() public {
         vm.expectEmit(true, false, false, false, address(agent));
-        emit RecoveryAgent.SignerAuthorized(signer);
-        agent.updateSigner(signer, true);
+        emit RecoveryAgent.SignerAdded(signer);
+        agent.addSigner(signer);
         assertTrue(agent.isAuthorizedSigner(signer));
     }
 
-    function test_removeSigner() public {
-        agent.updateSigner(signer, true);
-        vm.expectEmit(true, false, false, false, address(agent));
-        emit RecoveryAgent.SignerUnauthorized(signer);
-        agent.updateSigner(signer, false);
-        assertFalse(agent.isAuthorizedSigner(signer));
-    }
-
-    function test_updateSigner_revertsForNonOwner() public {
+    function test_addSigner_revertsForNonOwner() public {
         address stranger = makeAddr("stranger");
         vm.prank(stranger);
         vm.expectRevert();
-        agent.updateSigner(signer, true);
+        agent.addSigner(signer);
     }
 
-    function test_updateSigner_revertsForZeroAddress() public {
+    function test_addSigner_revertsForZeroAddress() public {
         vm.expectRevert(RecoveryAgent.ZeroAddress.selector);
-        agent.updateSigner(address(0), true);
+        agent.addSigner(address(0));
+    }
+
+    function test_addSigner_revertsIfAlreadyAuthorized() public {
+        agent.addSigner(signer);
+        vm.expectRevert(abi.encodeWithSelector(RecoveryAgent.SignerAlreadyAuthorized.selector, signer));
+        agent.addSigner(signer);
+    }
+
+    ////////////////////////////////////////////////////////////
+    //                      removeSigner                      //
+    ////////////////////////////////////////////////////////////
+
+    function test_removeSigner() public {
+        agent.addSigner(signer);
+        vm.expectEmit(true, false, false, false, address(agent));
+        emit RecoveryAgent.SignerRemoved(signer);
+        agent.removeSigner(signer);
+        assertFalse(agent.isAuthorizedSigner(signer));
+    }
+
+    function test_removeSigner_revertsForNonOwner() public {
+        agent.addSigner(signer);
+        address stranger = makeAddr("stranger");
+        vm.prank(stranger);
+        vm.expectRevert();
+        agent.removeSigner(signer);
+    }
+
+    function test_removeSigner_revertsIfNotAuthorized() public {
+        vm.expectRevert(abi.encodeWithSelector(RecoveryAgent.SignerNotAuthorized.selector, signer));
+        agent.removeSigner(signer);
     }
 
     ////////////////////////////////////////////////////////////
@@ -78,22 +101,22 @@ contract RecoveryAgentTest is Test {
     function test_signerCount_incrementsOnAdd() public {
         assertEq(agent.signerCount(), 0);
 
-        agent.updateSigner(signer, true);
+        agent.addSigner(signer);
         assertEq(agent.signerCount(), 1);
 
         address signer2 = makeAddr("signer2");
-        agent.updateSigner(signer2, true);
+        agent.addSigner(signer2);
         assertEq(agent.signerCount(), 2);
     }
 
     function test_signerCount_decrementsOnRemove() public {
-        agent.updateSigner(signer, true);
-        agent.updateSigner(signer, false);
+        agent.addSigner(signer);
+        agent.removeSigner(signer);
         assertEq(agent.signerCount(), 0);
     }
 
     function test_signerAt_returnsCorrectAddress() public {
-        agent.updateSigner(signer, true);
+        agent.addSigner(signer);
         assertEq(agent.signerAt(0), signer);
     }
 
@@ -106,23 +129,12 @@ contract RecoveryAgentTest is Test {
         address signer2 = makeAddr("signer2");
         address signer3 = makeAddr("signer3");
 
-        agent.updateSigner(signer, true);
-        agent.updateSigner(signer2, true);
-        agent.updateSigner(signer3, true);
+        agent.addSigner(signer);
+        agent.addSigner(signer2);
+        agent.addSigner(signer3);
 
         address[] memory signers = agent.getSigners();
         assertEq(signers.length, 3);
-    }
-
-    function test_addingSameSignerTwice_doesNotDuplicate() public {
-        agent.updateSigner(signer, true);
-        agent.updateSigner(signer, true);
-        assertEq(agent.signerCount(), 1);
-    }
-
-    function test_removingNonExistentSigner_doesNotRevert() public {
-        agent.updateSigner(signer, false);
-        assertEq(agent.signerCount(), 0);
     }
 
     ////////////////////////////////////////////////////////////
@@ -130,7 +142,7 @@ contract RecoveryAgentTest is Test {
     ////////////////////////////////////////////////////////////
 
     function test_isValidSignature_authorizedSigner() public {
-        agent.updateSigner(signer, true);
+        agent.addSigner(signer);
 
         bytes32 hash = keccak256("test message");
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, hash);
@@ -148,7 +160,7 @@ contract RecoveryAgentTest is Test {
     }
 
     function test_isValidSignature_invalidSignature() public {
-        agent.updateSigner(signer, true);
+        agent.addSigner(signer);
 
         bytes32 hash = keccak256("test message");
         bytes memory badSig = new bytes(65);
@@ -157,8 +169,8 @@ contract RecoveryAgentTest is Test {
     }
 
     function test_isValidSignature_removedSigner() public {
-        agent.updateSigner(signer, true);
-        agent.updateSigner(signer, false);
+        agent.addSigner(signer);
+        agent.removeSigner(signer);
 
         bytes32 hash = keccak256("test message");
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, hash);
@@ -168,7 +180,7 @@ contract RecoveryAgentTest is Test {
     }
 
     function test_isValidSignature_wrongHash() public {
-        agent.updateSigner(signer, true);
+        agent.addSigner(signer);
 
         bytes32 originalHash = keccak256("original message");
         bytes32 wrongHash = keccak256("different message");
@@ -183,7 +195,7 @@ contract RecoveryAgentTest is Test {
         privateKey = bound(privateKey, 1, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364140);
         address fuzzSigner = vm.addr(privateKey);
 
-        agent.updateSigner(fuzzSigner, true);
+        agent.addSigner(fuzzSigner);
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, hash);
         bytes memory signature = abi.encodePacked(r, s, v);
@@ -210,10 +222,16 @@ contract RecoveryAgentTest is Test {
         impl.isAuthorizedSigner(signer);
     }
 
-    function test_updateSigner_revertsOnImplementation() public {
+    function test_addSigner_revertsOnImplementation() public {
         RecoveryAgent impl = new RecoveryAgent();
         vm.expectRevert();
-        impl.updateSigner(signer, true);
+        impl.addSigner(signer);
+    }
+
+    function test_removeSigner_revertsOnImplementation() public {
+        RecoveryAgent impl = new RecoveryAgent();
+        vm.expectRevert();
+        impl.removeSigner(signer);
     }
 
     ////////////////////////////////////////////////////////////
@@ -230,15 +248,12 @@ contract RecoveryAgentTest is Test {
     ////////////////////////////////////////////////////////////
 
     function test_signatureChecker_validatesAuthorizedSigner() public {
-        agent.updateSigner(signer, true);
+        agent.addSigner(signer);
 
         bytes32 hash = keccak256("cross-contract call");
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, hash);
         bytes memory signature = abi.encodePacked(r, s, v);
 
-        // OZ SignatureChecker sees address(agent) has code,
-        // falls through to isValidERC1271SignatureNow which
-        // calls isValidSignature and checks the magic value.
         assertTrue(SignatureChecker.isValidSignatureNow(address(agent), hash, signature));
     }
 
@@ -254,29 +269,23 @@ contract RecoveryAgentTest is Test {
     //                   Multisig as owner                    //
     ////////////////////////////////////////////////////////////
 
-    function test_multisigOwnerCanUpdateSigner() public {
-        // Set up two multisig co-signers
+    function test_multisigOwnerCanAddSigner() public {
         (address cosigner1, uint256 cosigner1Key) = makeAddrAndKey("cosigner1");
         (address cosigner2, uint256 cosigner2Key) = makeAddrAndKey("cosigner2");
 
-        // Deploy 2-of-2 multisig
         Multisig2of2 multisig = new Multisig2of2(cosigner1, cosigner2);
 
-        // Transfer ownership to the multisig (2-step)
         agent.transferOwnership(address(multisig));
         multisig.execute(address(agent), abi.encodeCall(Ownable2StepUpgradeable.acceptOwnership, ()));
         assertEq(agent.owner(), address(multisig));
 
-        // Build the updateSigner call the multisig will execute
         address newSigner = makeAddr("newSigner");
-        bytes memory innerCall = abi.encodeCall(RecoveryAgent.updateSigner, (newSigner, true));
+        bytes memory innerCall = abi.encodeCall(RecoveryAgent.addSigner, (newSigner));
 
-        // Both co-signers sign the execution digest
         bytes32 digest = multisig.getDigest(address(agent), innerCall, multisig.nonce());
         (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(cosigner1Key, digest);
         (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(cosigner2Key, digest);
 
-        // Execute through multisig with both signatures
         multisig.executeWithSignatures(
             address(agent), innerCall, abi.encodePacked(r1, s1, v1), abi.encodePacked(r2, s2, v2)
         );
@@ -294,12 +303,11 @@ contract RecoveryAgentTest is Test {
         multisig.execute(address(agent), abi.encodeCall(Ownable2StepUpgradeable.acceptOwnership, ()));
 
         address newSigner = makeAddr("newSigner");
-        bytes memory innerCall = abi.encodeCall(RecoveryAgent.updateSigner, (newSigner, true));
+        bytes memory innerCall = abi.encodeCall(RecoveryAgent.addSigner, (newSigner));
 
         bytes32 digest = multisig.getDigest(address(agent), innerCall, multisig.nonce());
         (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(cosigner1Key, digest);
 
-        // Second sig from cosigner1 again (not cosigner2)
         vm.expectRevert(Multisig2of2.InvalidSignature.selector);
         multisig.executeWithSignatures(
             address(agent), innerCall, abi.encodePacked(r1, s1, v1), abi.encodePacked(r1, s1, v1)

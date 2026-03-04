@@ -8,17 +8,24 @@ import {IERC1271} from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
+/**
+ * @title Recovery Agent
+ * @author World Contributors
+ * @notice A very simple implementation of a signing contract where an owner can authorize multiple signers to sign on their behalf without management privileges.
+ * @dev This contract is used as a Recovery Agent in the World ID Protocol.
+ * @custom:repo https://github.com/worldcoin/world-id-utility-contracts
+ */
 contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IERC1271 {
     using EnumerableSet for EnumerableSet.AddressSet;
     ////////////////////////////////////////////////////////////
     //                         Events                         //
     ////////////////////////////////////////////////////////////
 
-    /// @notice Emitted when a signer is authorized (usually added).
-    event SignerAuthorized(address indexed signer);
+    /// @notice Emitted when a signer is added to the authorized set.
+    event SignerAdded(address indexed signer);
 
-    /// @notice Emitted when a signer is not authorized (usually a revocation).
-    event SignerUnauthorized(address indexed signer);
+    /// @notice Emitted when a signer is removed from the authorized set.
+    event SignerRemoved(address indexed signer);
 
     ////////////////////////////////////////////////////////////
     //                         Errors                         //
@@ -29,6 +36,12 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
 
     /// @dev Thrown when attempting to set an address parameter to the zero address.
     error ZeroAddress();
+
+    /// @dev Thrown when attempting to add a signer that is already authorized.
+    error SignerAlreadyAuthorized(address signer);
+
+    /// @dev Thrown when attempting to remove a signer that is not authorized.
+    error SignerNotAuthorized(address signer);
 
     ////////////////////////////////////////////////////////////
     //                        Modifiers                       //
@@ -67,7 +80,7 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
     /// @dev The set of authorized signers that can sign on behalf of the contract.
     EnumerableSet.AddressSet private _signers;
 
-    uint256[49] private __gap;
+    uint256[50] private __gap;
 
     ////////////////////////////////////////////////////////////
     //                       Constructor                      //
@@ -129,18 +142,15 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
     //                      Owner Functions                   //
     ////////////////////////////////////////////////////////////
 
-    function updateSigner(address signer, bool isAuthorized) external onlyOwner onlyProxy onlyInitialized {
-        if (signer == address(0)) {
-            revert ZeroAddress();
-        }
+    function addSigner(address signer) external onlyOwner onlyProxy onlyInitialized {
+        if (signer == address(0)) revert ZeroAddress();
+        if (!_signers.add(signer)) revert SignerAlreadyAuthorized(signer);
+        emit SignerAdded(signer);
+    }
 
-        if (isAuthorized) {
-            _signers.add(signer);
-            emit SignerAuthorized(signer);
-        } else {
-            _signers.remove(signer);
-            emit SignerUnauthorized(signer);
-        }
+    function removeSigner(address signer) external onlyOwner onlyProxy onlyInitialized {
+        if (!_signers.remove(signer)) revert SignerNotAuthorized(signer);
+        emit SignerRemoved(signer);
     }
 
     /// @notice Is called when upgrading the contract to check whether it should be performed.
