@@ -6,8 +6,10 @@ import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/acces
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {IERC1271} from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IERC1271 {
+    using EnumerableSet for EnumerableSet.AddressSet;
     ////////////////////////////////////////////////////////////
     //                         Events                         //
     ////////////////////////////////////////////////////////////
@@ -62,10 +64,10 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
     // that no reordering of these variables takes place. If reordering happens, a storage
     // clash will occur (effectively a memory safety error).
 
-    /// @dev The list of authorized signers that can sign on behalf of the contract. Using a mapping for O(1) lookups.
-    mapping(address => bool) internal _isAuthorizedSigner;
+    /// @dev The set of authorized signers that can sign on behalf of the contract.
+    EnumerableSet.AddressSet private _signers;
 
-    uint256[50] private __gap;
+    uint256[49] private __gap;
 
     ////////////////////////////////////////////////////////////
     //                       Constructor                      //
@@ -100,7 +102,7 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
     {
         // Extract the signer from the signature and check if they are an authorized signer
         (address signer, ECDSA.RecoverError err,) = ECDSA.tryRecover(hash, signature);
-        if (err == ECDSA.RecoverError.NoError && _isAuthorizedSigner[signer]) {
+        if (err == ECDSA.RecoverError.NoError && _signers.contains(signer)) {
             return _MAGICVALUE;
         } else {
             return 0xffffffff;
@@ -108,7 +110,19 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
     }
 
     function isAuthorizedSigner(address signer) external view onlyProxy onlyInitialized returns (bool) {
-        return _isAuthorizedSigner[signer];
+        return _signers.contains(signer);
+    }
+
+    function signerCount() external view onlyProxy onlyInitialized returns (uint256) {
+        return _signers.length();
+    }
+
+    function signerAt(uint256 index) external view onlyProxy onlyInitialized returns (address) {
+        return _signers.at(index);
+    }
+
+    function getSigners() external view onlyProxy onlyInitialized returns (address[] memory) {
+        return _signers.values();
     }
 
     ////////////////////////////////////////////////////////////
@@ -120,10 +134,11 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
             revert ZeroAddress();
         }
 
-        _isAuthorizedSigner[signer] = isAuthorized;
         if (isAuthorized) {
+            _signers.add(signer);
             emit SignerAuthorized(signer);
         } else {
+            _signers.remove(signer);
             emit SignerUnauthorized(signer);
         }
     }

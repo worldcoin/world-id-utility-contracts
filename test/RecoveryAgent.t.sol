@@ -66,6 +66,65 @@ contract RecoveryAgentTest is Test {
         agent.updateSigner(signer, true);
     }
 
+    function test_updateSigner_revertsForZeroAddress() public {
+        vm.expectRevert(RecoveryAgent.ZeroAddress.selector);
+        agent.updateSigner(address(0), true);
+    }
+
+    ////////////////////////////////////////////////////////////
+    //                   Signer Enumeration                   //
+    ////////////////////////////////////////////////////////////
+
+    function test_signerCount_incrementsOnAdd() public {
+        assertEq(agent.signerCount(), 0);
+
+        agent.updateSigner(signer, true);
+        assertEq(agent.signerCount(), 1);
+
+        address signer2 = makeAddr("signer2");
+        agent.updateSigner(signer2, true);
+        assertEq(agent.signerCount(), 2);
+    }
+
+    function test_signerCount_decrementsOnRemove() public {
+        agent.updateSigner(signer, true);
+        agent.updateSigner(signer, false);
+        assertEq(agent.signerCount(), 0);
+    }
+
+    function test_signerAt_returnsCorrectAddress() public {
+        agent.updateSigner(signer, true);
+        assertEq(agent.signerAt(0), signer);
+    }
+
+    function test_signerAt_revertsOutOfBounds() public {
+        vm.expectRevert();
+        agent.signerAt(0);
+    }
+
+    function test_getSigners_returnsAllSigners() public {
+        address signer2 = makeAddr("signer2");
+        address signer3 = makeAddr("signer3");
+
+        agent.updateSigner(signer, true);
+        agent.updateSigner(signer2, true);
+        agent.updateSigner(signer3, true);
+
+        address[] memory signers = agent.getSigners();
+        assertEq(signers.length, 3);
+    }
+
+    function test_addingSameSignerTwice_doesNotDuplicate() public {
+        agent.updateSigner(signer, true);
+        agent.updateSigner(signer, true);
+        assertEq(agent.signerCount(), 1);
+    }
+
+    function test_removingNonExistentSigner_doesNotRevert() public {
+        agent.updateSigner(signer, false);
+        assertEq(agent.signerCount(), 0);
+    }
+
     ////////////////////////////////////////////////////////////
     //               isValidSignature (ERC-1271)              //
     ////////////////////////////////////////////////////////////
@@ -106,6 +165,64 @@ contract RecoveryAgentTest is Test {
         bytes memory signature = abi.encodePacked(r, s, v);
 
         assertEq(agent.isValidSignature(hash, signature), INVALID_VALUE);
+    }
+
+    function test_isValidSignature_wrongHash() public {
+        agent.updateSigner(signer, true);
+
+        bytes32 originalHash = keccak256("original message");
+        bytes32 wrongHash = keccak256("different message");
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, originalHash);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        assertEq(agent.isValidSignature(wrongHash, signature), INVALID_VALUE);
+    }
+
+    function test_isValidSignatureFuzzy(uint256 privateKey, bytes32 hash) public {
+        // bind the private key to valid secp256k1 range
+        privateKey = bound(privateKey, 1, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364140);
+        address fuzzSigner = vm.addr(privateKey);
+
+        agent.updateSigner(fuzzSigner, true);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, hash);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        assertEq(agent.isValidSignature(hash, signature), MAGIC_VALUE);
+    }
+
+    ////////////////////////////////////////////////////////////
+    //                   onlyProxy guard                      //
+    ////////////////////////////////////////////////////////////
+
+    function test_isValidSignature_revertsOnImplementation() public {
+        RecoveryAgent impl = new RecoveryAgent();
+        bytes32 hash = keccak256("test");
+        bytes memory sig = new bytes(65);
+
+        vm.expectRevert();
+        impl.isValidSignature(hash, sig);
+    }
+
+    function test_isAuthorizedSigner_revertsOnImplementation() public {
+        RecoveryAgent impl = new RecoveryAgent();
+        vm.expectRevert();
+        impl.isAuthorizedSigner(signer);
+    }
+
+    function test_updateSigner_revertsOnImplementation() public {
+        RecoveryAgent impl = new RecoveryAgent();
+        vm.expectRevert();
+        impl.updateSigner(signer, true);
+    }
+
+    ////////////////////////////////////////////////////////////
+    //                   Re-initialization                    //
+    ////////////////////////////////////////////////////////////
+
+    function test_proxyCannotBeReinitalized() public {
+        vm.expectRevert();
+        agent.initialize();
     }
 
     ////////////////////////////////////////////////////////////
