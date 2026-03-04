@@ -18,14 +18,24 @@ contract RecoveryAgent is
     IERC1271
 {
     ////////////////////////////////////////////////////////////
-    //                         ERRORS                         //
+    //                         Events                         //
+    ////////////////////////////////////////////////////////////
+
+    /// @notice Emitted when a signer is authorized (usually added).
+    event SignerAuthorized(address indexed signer);
+
+    /// @notice Emitted when a signer is not authorized (usually a revokation).
+    event SignerUnauthorized(address indexed signer);
+
+    ////////////////////////////////////////////////////////////
+    //                         Errors                         //
     ////////////////////////////////////////////////////////////
 
     /// @notice Thrown when a function is called on an uninitialized implementation.
     error ImplementationNotInitialized();
 
     ////////////////////////////////////////////////////////////
-    //                        MODIFIERS                       //
+    //                        Modifiers                       //
     ////////////////////////////////////////////////////////////
 
     /// @notice Ensures the implementation has been initialized (via proxy initialization).
@@ -65,7 +75,7 @@ contract RecoveryAgent is
     mapping(address => bool) internal _isAuthorizedSigner;
 
     ////////////////////////////////////////////////////////////
-    //                       CONSTRUCTOR                      //
+    //                       Constructor                      //
     ////////////////////////////////////////////////////////////
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -106,20 +116,25 @@ contract RecoveryAgent is
         }
     }
 
+    function isAuthorizedSigner(address signer) external view onlyProxy onlyInitialized returns (bool) {
+        return _isAuthorizedSigner[signer];
+    }
+
     ////////////////////////////////////////////////////////////
     //                      Owner Functions                   //
     ////////////////////////////////////////////////////////////
 
     function updateSigner(address signer, bool isAuthorized) external onlyOwner onlyProxy onlyInitialized {
         _isAuthorizedSigner[signer] = isAuthorized;
+        if (isAuthorized) {
+            emit SignerAuthorized(signer);
+        } else {
+            emit SignerUnauthorized(signer);
+        }
     }
-
-    ////////////////////////////////////////////////////////////
-    //                   UPGRADE AUTHORIZATION                //
-    ////////////////////////////////////////////////////////////
 
     /// @notice Is called when upgrading the contract to check whether it should be performed.
     /// @param newImplementation The address of the implementation being upgraded to.
-    /// @custom:reverts string If called by any account other than the proxy owner.
+    /// @custom:reverts string If not called by the proxy owner.
     function _authorizeUpgrade(address newImplementation) internal virtual override onlyOwner {}
 }
