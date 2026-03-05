@@ -4,7 +4,6 @@ pragma solidity ^0.8.13;
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {IAddressBook} from "./interfaces/IAddressBook.sol";
 import {IWorldIDVerifier} from "./interfaces/IWorldIDVerifier.sol";
 import {DateTimeLib} from "./libraries/DateTimeLib.sol";
@@ -16,7 +15,7 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
  * @notice Action-scoped soft-cache for World ID proof verifications.
  * @dev Designed for proxy deployments (UUPS).
  */
-contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, EIP712Upgradeable, IAddressBook {
+contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IAddressBook {
     ////////////////////////////////////////////////////////////
     //                         ERRORS                         //
     ////////////////////////////////////////////////////////////
@@ -48,17 +47,6 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     /// @dev epochId => nullifier => used.
     mapping(bytes32 => mapping(uint256 => bool)) internal _epochNullifierUsed;
-
-    ////////////////////////////////////////////////////////////
-    //                       CONSTANTS                        //
-    ////////////////////////////////////////////////////////////
-
-    string public constant EIP712_NAME = "AddressBook";
-    string public constant EIP712_VERSION = "1.0";
-
-    ////////////////////////////////////////////////////////////
-    //                        MODIFIERS                       //
-    ////////////////////////////////////////////////////////////
 
     /// @notice Ensures the implementation has been initialized via proxy.
     modifier onlyInitialized() {
@@ -97,7 +85,6 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
         __Ownable_init(msg.sender);
         __Ownable2Step_init();
-        __EIP712_init(EIP712_NAME, EIP712_VERSION);
 
         _worldIDVerifier = IWorldIDVerifier(worldIDVerifier);
         _periodStartTimestamp = periodStartTimestamp;
