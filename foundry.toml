@@ -3,4 +3,26 @@ src = "src"
 out = "out"
 libs = ["lib"]
 
+# Do _not_ change any of these fields
+solc = "0.8.28"
+auto_detect_solc = false
+evm_version = "cancun"
+bytecode_hash = "none"
+cbor_metadata = false
+optimizer = true
+optimizer_runs = 10000
+
+
+# Suppress compiler warnings from vendored submodules
+ignored_warnings_from = ["lib/"]
+
+fs_permissions = [
+    { access = "read", path = "script/config" },
+    { access = "write", path = "deployments" },
+]
+
+[fmt]
+ignore = ["lib"]
+
+
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
