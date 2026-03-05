@@ -4,7 +4,6 @@ test = "test"
 out = "out"
 libs = ["lib"]
 remappings = [
-    "@world-id-core/=lib/world-id-protocol/contracts/src/core/",
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
     "@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/"
 ]

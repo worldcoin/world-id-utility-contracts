@@ -1,18 +1,31 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {WorldIDBase} from "@world-id-core/abstract/WorldIDBase.sol";
-import {IWorldIDVerifier} from "@world-id-core/interfaces/IWorldIDVerifier.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {IAddressBook} from "./interfaces/IAddressBook.sol";
+import {IWorldIDVerifier} from "./interfaces/IWorldIDVerifier.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 /**
  * @title AddressBook
  * @author World Contributors
  * @notice Action-scoped soft-cache for World ID proof verifications.
- * @dev Designed for proxy deployments (UUPS via WorldIDBase).
+ * @dev Designed for proxy deployments (UUPS).
  */
-contract AddressBook is WorldIDBase, IAddressBook {
+contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, EIP712Upgradeable, IAddressBook {
+    ////////////////////////////////////////////////////////////
+    //                         ERRORS                         //
+    ////////////////////////////////////////////////////////////
+
+    /// @notice Thrown when a function is called before initialization.
+    error ImplementationNotInitialized();
+
+    /// @notice Thrown when attempting to set an address parameter to zero.
+    error ZeroAddress();
+
     ////////////////////////////////////////////////////////////
     //                        MEMBERS                         //
     ////////////////////////////////////////////////////////////
@@ -46,6 +59,16 @@ contract AddressBook is WorldIDBase, IAddressBook {
     string public constant EIP712_VERSION = "1.0";
 
     ////////////////////////////////////////////////////////////
+    //                        MODIFIERS                       //
+    ////////////////////////////////////////////////////////////
+
+    /// @notice Ensures the implementation has been initialized via proxy.
+    modifier onlyInitialized() {
+        _onlyInitialized();
+        _;
+    }
+
+    ////////////////////////////////////////////////////////////
     //                      CONSTRUCTOR                       //
     ////////////////////////////////////////////////////////////
 
@@ -74,7 +97,9 @@ contract AddressBook is WorldIDBase, IAddressBook {
         if (worldIDVerifier == address(0)) revert ZeroAddress();
         if (periodLengthSeconds == 0) revert InvalidPeriodLength();
 
-        __BaseUpgradeable_init(EIP712_NAME, EIP712_VERSION, address(0), address(0), 0);
+        __Ownable_init(msg.sender);
+        __Ownable2Step_init();
+        __EIP712_init(EIP712_NAME, EIP712_VERSION);
 
         _worldIDVerifier = IWorldIDVerifier(worldIDVerifier);
         _periodStartTimestamp = periodStartTimestamp;
@@ -255,6 +280,13 @@ contract AddressBook is WorldIDBase, IAddressBook {
         emit AddressRegistered(epochId, targetPeriod, epoch.action, account, proof.nullifier);
     }
 
+    /// @dev Reverts if this implementation has not been initialized.
+    function _onlyInitialized() internal view {
+        if (_getInitializedVersion() == 0) {
+            revert ImplementationNotInitialized();
+        }
+    }
+
     function _getCurrentPeriod() internal view virtual returns (uint32) {
         if (block.timestamp < _periodStartTimestamp) revert PeriodNotStarted();
 
@@ -277,4 +309,7 @@ contract AddressBook is WorldIDBase, IAddressBook {
     function _computeSignal(address account) internal pure virtual returns (string memory) {
         return Strings.toHexString(uint256(uint160(account)), 20);
     }
+
+    /// @inheritdoc UUPSUpgradeable
+    function _authorizeUpgrade(address) internal virtual override onlyProxy onlyOwner {}
 }
