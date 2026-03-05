@@ -7,6 +7,7 @@
 - Context: `EpochData { action }`
 - Active period: computed as UTC calendar months from `periodStartTimestamp`
 - `periodStartTimestamp` must be the first second of a UTC month (`YYYY-MM-01 00:00:00 UTC`)
+- Date conversion and month arithmetic are implemented in `libraries/DateTimeLib.sol`
 - Storage key: `epochId = keccak256(abi.encode(period, action))`
 - `targetPeriod` is part of the storage key at registration time
 
