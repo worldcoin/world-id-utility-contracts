@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.28;
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
@@ -58,7 +58,7 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
     }
 
     /// @dev Reverts if the contract is not initialized.
-    function _onlyInitialized() internal view {
+    function _onlyInitialized() internal view virtual {
         if (_getInitializedVersion() == 0) {
             revert ImplementationNotInitialized();
         }
@@ -81,9 +81,9 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
     // clash will occur (effectively a memory safety error).
 
     /// @dev The set of authorized signers that can sign on behalf of the contract.
-    EnumerableSet.AddressSet private _signers;
+    EnumerableSet.AddressSet internal _signers;
 
-    uint256[48] private __gap;
+    uint256[48] internal __gap;
 
     ////////////////////////////////////////////////////////////
     //                       Constructor                      //
@@ -94,7 +94,7 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
         _disableInitializers();
     }
 
-    function initialize() public initializer {
+    function initialize() public virtual initializer {
         __Ownable_init(msg.sender); // `OwnableUpgradeable` delegation
         __Ownable2Step_init();
     }
@@ -125,19 +125,19 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
         }
     }
 
-    function isAuthorizedSigner(address signer) external view onlyProxy onlyInitialized returns (bool) {
+    function isAuthorizedSigner(address signer) external view virtual onlyProxy onlyInitialized returns (bool) {
         return _signers.contains(signer);
     }
 
-    function signerCount() external view onlyProxy onlyInitialized returns (uint256) {
+    function signerCount() external view virtual onlyProxy onlyInitialized returns (uint256) {
         return _signers.length();
     }
 
-    function signerAt(uint256 index) external view onlyProxy onlyInitialized returns (address) {
+    function signerAt(uint256 index) external view virtual onlyProxy onlyInitialized returns (address) {
         return _signers.at(index);
     }
 
-    function getSigners() external view onlyProxy onlyInitialized returns (address[] memory) {
+    function getSigners() external view virtual onlyProxy onlyInitialized returns (address[] memory) {
         return _signers.values();
     }
 
@@ -145,18 +145,18 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
     //                      Owner Functions                   //
     ////////////////////////////////////////////////////////////
 
-    function addSigner(address signer) external onlyOwner onlyProxy onlyInitialized {
+    function addSigner(address signer) external virtual onlyOwner onlyProxy onlyInitialized {
         if (signer == address(0)) revert ZeroAddress();
         if (!_signers.add(signer)) revert SignerAlreadyAuthorized(signer);
         emit SignerAdded(signer);
     }
 
-    function removeSigner(address signer) external onlyOwner onlyProxy onlyInitialized {
+    function removeSigner(address signer) external virtual onlyOwner onlyProxy onlyInitialized {
         if (!_signers.remove(signer)) revert SignerNotAuthorized(signer);
         emit SignerRemoved(signer);
     }
 
-    function renounceOwnership() public view override onlyOwner onlyProxy onlyInitialized {
+    function renounceOwnership() public view override onlyOwner {
         revert RenounceOwnershipDisabled();
     }
 
