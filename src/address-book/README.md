@@ -6,31 +6,32 @@
 
 - Context: `EpochData { action }`
 - Active period: computed from `periodStartTimestamp` and `periodLengthSeconds`
-- Storage key: `epochId = bytes32(action)`
-- `targetPeriod` is used for registration policy/expiry checks only; it is not part of the storage key
+- Storage key: `epochId = keccak256(abi.encode(period, action))`
+- `targetPeriod` is part of the storage key at registration time
 
 ## Registration
 
-`register(account, targetPeriod, epoch, proof)` verifies the World ID proof and stores the result under `epochId(epoch)`.
+`register(account, targetPeriod, epoch, proof)` verifies the World ID proof and stores the result under
+`epochId(targetPeriod, epoch)`.
 
 `proof` carries the verifier public inputs needed by `WorldIDVerifier`, including `rpId`.
 
 Constraints:
 
-- one nullifier per `epochId`
-- one address per `epochId`
+- one nullifier per `(period, action)` epoch key
+- one address per `(period, action)` epoch key
 - optional registration guard for current/next period only
 - `proof.expiresAtMin` must cover the full target period:
   - `expiresAtMin >= periodStartTimestamp + (targetPeriod + 1) * periodLengthSeconds`
 
 ## Verification
 
-`verify(epoch, account)` enforces a valid current period, then performs an action-scoped lookup:
+`verify(epoch, account)` enforces a valid current period, then performs a period+action scoped lookup:
 
 - compute `currentPeriod`
-- lookup `epochId(epoch)` (period is not part of the key)
+- lookup `epochId(currentPeriod, epoch)`
 
-Since `epochId` is action-only, verification does not roll over by period unless action values themselves are period-specific.
+Because `period` is part of `epochId`, verification naturally rolls over by period.
 
 ## Signal binding
 
@@ -44,11 +45,11 @@ This matches the authenticator path (`RequestItem.signal` -> hash raw UTF-8 byte
 
 ## Security Invariants
 
-1. **Per-action nullifier uniqueness**
-- A nullifier can be consumed only once within the same `epochId` (action).
+1. **Per-period+action nullifier uniqueness**
+- A nullifier can be consumed only once within the same `epochId` (period, action).
 
-2. **Per-action address uniqueness**
-- The same account cannot be re-registered in the same `epochId` (action).
+2. **Per-period+action address uniqueness**
+- The same account cannot be re-registered in the same `epochId` (period, action).
 
 3. **Proof/account binding**
 - `signalHash` binds the proof to the registered account.
@@ -73,14 +74,14 @@ Assume:
 2. Any caller can submit registration:
    - `register(userAddress, 10, epoch, proof)`
 3. Contract verifies proof through `WorldIDVerifier.verify(...)` and stores:
-   - `registered[epochId(A_JAN)][userAddress] = true`
+   - `registered[epochId(10, A_JAN)][userAddress] = true`
 4. Contract enforces `proof.expiresAtMin` is at least the end of period `10`.
 
 ### 2) Repeated checks in January
 
 1. RP calls:
    - `verify(epoch, userAddress)`
-2. Contract computes current period (`10`) and checks `epochId(A_JAN)`.
+2. Contract computes current period (`10`) and checks `epochId(10, A_JAN)`.
 3. Result is `true` with a cheap storage lookup (no new full proof verification).
 
 ### 3) February rollover
@@ -88,8 +89,8 @@ Assume:
 1. Time moves forward by one period; now current period is `11`.
 2. RP calls again:
    - `verify(epoch, userAddress)`
-3. Contract still checks `epochId(A_JAN)`.
-4. Result remains `true` unless a different action is required.
+3. Contract now checks `epochId(11, A_JAN)`.
+4. Result is `false` unless user also registered for period `11`.
 
 ### 4) Pre-register next period
 
@@ -97,10 +98,10 @@ If pre-registration is enabled by policy:
 
 1. During period `10`, user can register for period `11`:
    - `register(userAddress, 11, EpochData{action: A_FEB}, proofForAFEB)`
-2. Before rollover, `verify(EpochData{A_FEB}, userAddress)` is `true` once registered.
+2. Before rollover, `verify(EpochData{A_FEB}, userAddress)` is `false` because current period is still `10`.
 3. After rollover to period `11`, the same call returns `true`.
 
 Notes:
 
 - If `enforceCurrentOrNextPeriod` is `true`, registering for period `12+` while current is `10` reverts.
-- The contract treats `action` as provided by the RP flow; for periodic behavior, actions should be period-specific.
+- The contract treats `action` as provided by the RP flow.
