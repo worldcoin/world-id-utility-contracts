@@ -85,11 +85,11 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
      * @param periodStartTimestamp First second of UTC month used for period 0.
      * @param enforceCurrentOrNextPeriod Whether to restrict registration to current/next period.
      */
-    function initialize(
-        address worldIDVerifier,
-        uint64 periodStartTimestamp,
-        bool enforceCurrentOrNextPeriod
-    ) public virtual initializer {
+    function initialize(address worldIDVerifier, uint64 periodStartTimestamp, bool enforceCurrentOrNextPeriod)
+        public
+        virtual
+        initializer
+    {
         if (worldIDVerifier == address(0)) revert ZeroAddress();
         if (!DateTimeLib.isUtcMonthStart(periodStartTimestamp)) {
             revert InvalidPeriodStartTimestamp(periodStartTimestamp);
@@ -296,8 +296,7 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         (uint256 baseYear, uint256 baseMonth) = DateTimeLib.timestampToYearMonth(_periodStartTimestamp);
         (uint256 currentYear, uint256 currentMonth) = DateTimeLib.timestampToYearMonth(block.timestamp);
 
-        uint256 period =
-            DateTimeLib.monthIndex(currentYear, currentMonth) - DateTimeLib.monthIndex(baseYear, baseMonth);
+        uint256 period = DateTimeLib.monthIndex(currentYear, currentMonth) - DateTimeLib.monthIndex(baseYear, baseMonth);
         if (period > type(uint32).max) revert PeriodOutOfRange();
 
         return uint32(period);

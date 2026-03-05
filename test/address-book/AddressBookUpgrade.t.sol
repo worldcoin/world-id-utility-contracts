@@ -52,9 +52,8 @@ contract AddressBookUpgradeTest is Test {
         verifier = new MockWorldIDVerifierUpgrade();
         AddressBook implementation = new AddressBook();
 
-        bytes memory initData = abi.encodeWithSelector(
-            AddressBook.initialize.selector, address(verifier), uint64(block.timestamp), true
-        );
+        bytes memory initData =
+            abi.encodeWithSelector(AddressBook.initialize.selector, address(verifier), uint64(block.timestamp), true);
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         addressBook = AddressBook(address(proxy));
