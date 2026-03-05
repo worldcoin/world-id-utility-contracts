@@ -15,7 +15,6 @@ contract RecoveryAgentTest is Test {
     address internal signer;
 
     bytes4 internal constant MAGIC_VALUE = 0x1626ba7e;
-    bytes4 internal constant INVALID_VALUE = 0xffffffff;
 
     function setUp() public {
         owner = address(this);
@@ -151,12 +150,13 @@ contract RecoveryAgentTest is Test {
         assertEq(agent.isValidSignature(hash, signature), MAGIC_VALUE);
     }
 
-    function test_isValidSignature_unauthorizedSigner() public view {
+    function test_isValidSignature_unauthorizedSigner() public {
         bytes32 hash = keccak256("test message");
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, hash);
         bytes memory signature = abi.encodePacked(r, s, v);
 
-        assertEq(agent.isValidSignature(hash, signature), INVALID_VALUE);
+        vm.expectRevert(abi.encodeWithSelector(RecoveryAgent.SignerNotAuthorized.selector, signer));
+        agent.isValidSignature(hash, signature);
     }
 
     function test_isValidSignature_invalidSignature() public {
@@ -165,7 +165,8 @@ contract RecoveryAgentTest is Test {
         bytes32 hash = keccak256("test message");
         bytes memory badSig = new bytes(65);
 
-        assertEq(agent.isValidSignature(hash, badSig), INVALID_VALUE);
+        vm.expectRevert(abi.encodeWithSelector(ECDSA.ECDSAInvalidSignature.selector));
+        agent.isValidSignature(hash, badSig);
     }
 
     function test_isValidSignature_removedSigner() public {
@@ -176,7 +177,8 @@ contract RecoveryAgentTest is Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, hash);
         bytes memory signature = abi.encodePacked(r, s, v);
 
-        assertEq(agent.isValidSignature(hash, signature), INVALID_VALUE);
+        vm.expectRevert(abi.encodeWithSelector(RecoveryAgent.SignerNotAuthorized.selector, signer));
+        agent.isValidSignature(hash, signature);
     }
 
     function test_isValidSignature_wrongHash() public {
@@ -186,8 +188,10 @@ contract RecoveryAgentTest is Test {
         bytes32 wrongHash = keccak256("different message");
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, originalHash);
         bytes memory signature = abi.encodePacked(r, s, v);
+        address recovered = ECDSA.recover(wrongHash, signature);
 
-        assertEq(agent.isValidSignature(wrongHash, signature), INVALID_VALUE);
+        vm.expectRevert(abi.encodeWithSelector(RecoveryAgent.SignerNotAuthorized.selector, recovered));
+        agent.isValidSignature(wrongHash, signature);
     }
 
     function test_isValidSignatureFuzzy(uint256 privateKey, bytes32 hash) public {

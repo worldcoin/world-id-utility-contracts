@@ -40,7 +40,7 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
     /// @dev Thrown when attempting to add a signer that is already authorized.
     error SignerAlreadyAuthorized(address signer);
 
-    /// @dev Thrown when attempting to remove a signer that is not authorized.
+    /// @dev Thrown when attempting to operate on a signer which is not authorized.
     error SignerNotAuthorized(address signer);
 
     /// @dev Thrown when attempting to renounce ownership, which is disabled for this contract.
@@ -83,8 +83,6 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
     /// @dev The set of authorized signers that can sign on behalf of the contract.
     EnumerableSet.AddressSet internal _signers;
 
-    uint256[48] internal __gap;
-
     ////////////////////////////////////////////////////////////
     //                       Constructor                      //
     ////////////////////////////////////////////////////////////
@@ -117,12 +115,11 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
         returns (bytes4 magicValue)
     {
         // Extract the signer from the signature and check if they are an authorized signer
-        (address signer, ECDSA.RecoverError err,) = ECDSA.tryRecover(hash, signature);
-        if (err == ECDSA.RecoverError.NoError && _signers.contains(signer)) {
+        address signer = ECDSA.recover(hash, signature);
+        if (_signers.contains(signer)) {
             return _MAGICVALUE;
-        } else {
-            return 0xffffffff;
         }
+        revert SignerNotAuthorized(signer);
     }
 
     function isAuthorizedSigner(address signer) external view virtual onlyProxy onlyInitialized returns (bool) {
