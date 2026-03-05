@@ -21,7 +21,7 @@ contract RecoveryAgentTest is Test {
         (signer, signerKey) = makeAddrAndKey("signer");
 
         RecoveryAgent impl = new RecoveryAgent();
-        ERC1967Proxy proxy = new ERC1967Proxy(address(impl), abi.encodeCall(RecoveryAgent.initialize, ()));
+        ERC1967Proxy proxy = new ERC1967Proxy(address(impl), abi.encodeCall(RecoveryAgent.initialize, (owner)));
         agent = RecoveryAgent(address(proxy));
     }
 
@@ -36,7 +36,7 @@ contract RecoveryAgentTest is Test {
     function test_implementationCannotBeInitialized() public {
         RecoveryAgent impl = new RecoveryAgent();
         vm.expectRevert();
-        impl.initialize();
+        impl.initialize(owner);
     }
 
     ////////////////////////////////////////////////////////////
@@ -244,7 +244,7 @@ contract RecoveryAgentTest is Test {
 
     function test_proxyCannotBeReinitalized() public {
         vm.expectRevert();
-        agent.initialize();
+        agent.initialize(owner);
     }
 
     ////////////////////////////////////////////////////////////
@@ -326,13 +326,13 @@ contract Multisig2of2 {
     error InvalidSignature();
     error CallFailed();
 
-    address public immutable signer1;
-    address public immutable signer2;
+    address public immutable SIGNER_1;
+    address public immutable SIGNER_2;
     uint256 public nonce;
 
     constructor(address _signer1, address _signer2) {
-        signer1 = _signer1;
-        signer2 = _signer2;
+        SIGNER_1 = _signer1;
+        SIGNER_2 = _signer2;
     }
 
     function getDigest(address target, bytes memory data, uint256 _nonce) public pure returns (bytes32) {
@@ -358,7 +358,7 @@ contract Multisig2of2 {
         address recovered2 = ECDSA.recover(digest, sig2);
 
         bool valid =
-            (recovered1 == signer1 && recovered2 == signer2) || (recovered1 == signer2 && recovered2 == signer1);
+            (recovered1 == SIGNER_1 && recovered2 == SIGNER_2) || (recovered1 == SIGNER_2 && recovered2 == SIGNER_1);
         if (!valid) revert InvalidSignature();
 
         nonce++;

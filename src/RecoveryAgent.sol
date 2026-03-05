@@ -92,8 +92,8 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
         _disableInitializers();
     }
 
-    function initialize() public virtual initializer {
-        __Ownable_init(msg.sender); // `OwnableUpgradeable` delegation
+    function initialize(address owner) public virtual initializer {
+        __Ownable_init(owner); // `OwnableUpgradeable` delegation
         __Ownable2Step_init();
     }
 
