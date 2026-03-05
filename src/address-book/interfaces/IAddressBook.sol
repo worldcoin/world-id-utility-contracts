@@ -36,8 +36,9 @@ interface IAddressBook {
     //                        ERRORS                          //
     ////////////////////////////////////////////////////////////
 
-    /// @notice Thrown when `periodLengthSeconds` is set to zero.
-    error InvalidPeriodLength();
+    /// @notice Thrown when `periodStartTimestamp` is not the first second of a UTC calendar month.
+    /// @param periodStartTimestamp The invalid start timestamp.
+    error InvalidPeriodStartTimestamp(uint64 periodStartTimestamp);
 
     /// @notice Thrown when registration/verification is attempted before period 0 start.
     error PeriodNotStarted();
@@ -143,13 +144,9 @@ interface IAddressBook {
 
     /**
      * @notice Returns the configured period start timestamp.
+     * @dev This must be the first second of a UTC calendar month.
      */
     function getPeriodStartTimestamp() external view returns (uint64);
-
-    /**
-     * @notice Returns the configured period length in seconds.
-     */
-    function getPeriodLengthSeconds() external view returns (uint64);
 
     /**
      * @notice Returns whether registration is limited to current or next period.

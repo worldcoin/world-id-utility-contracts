@@ -5,7 +5,8 @@
 ## Core model
 
 - Context: `EpochData { action }`
-- Active period: computed from `periodStartTimestamp` and `periodLengthSeconds`
+- Active period: computed as UTC calendar months from `periodStartTimestamp`
+- `periodStartTimestamp` must be the first second of a UTC month (`YYYY-MM-01 00:00:00 UTC`)
 - Storage key: `epochId = keccak256(abi.encode(period, action))`
 - `targetPeriod` is part of the storage key at registration time
 
@@ -22,7 +23,7 @@ Constraints:
 - one address per `(period, action)` epoch key
 - optional registration guard for current/next period only
 - `proof.expiresAtMin` must cover the full target period:
-  - `expiresAtMin >= periodStartTimestamp + (targetPeriod + 1) * periodLengthSeconds`
+  - `expiresAtMin >= firstSecondOfUtcMonth(targetPeriod + 1)`
 
 ## Verification
 
@@ -64,7 +65,7 @@ This matches the authenticator path (`RequestItem.signal` -> hash raw UTF-8 byte
 
 Assume:
 
-- `periodLengthSeconds = 30 days`
+- `periodStartTimestamp = 2025-01-01 00:00:00 UTC`
 - `epoch = EpochData { action: A_JAN }`
 - current period at start is `P=10` (January)
 

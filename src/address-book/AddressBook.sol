@@ -36,11 +36,8 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     /// @dev World ID verifier used by register() to validate proofs.
     IWorldIDVerifier internal _worldIDVerifier;
 
-    /// @dev Unix timestamp marking period 0 start.
+    /// @dev First second of the UTC calendar month used as period 0 start.
     uint64 internal _periodStartTimestamp;
-
-    /// @dev Fixed period length in seconds.
-    uint64 internal _periodLengthSeconds;
 
     /// @dev If true, registration is limited to current or next period only.
     bool internal _enforceCurrentOrNextPeriod;
@@ -57,6 +54,8 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     string public constant EIP712_NAME = "AddressBook";
     string public constant EIP712_VERSION = "1.0";
+    uint256 internal constant SECONDS_PER_DAY = 24 * 60 * 60;
+    int256 internal constant OFFSET19700101 = 2440588;
 
     ////////////////////////////////////////////////////////////
     //                        MODIFIERS                       //
@@ -84,18 +83,16 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     /**
      * @notice Initializes the AddressBook contract.
      * @param worldIDVerifier Address of WorldIDVerifier.
-     * @param periodStartTimestamp Start timestamp for period 0.
-     * @param periodLengthSeconds Period length in seconds.
+     * @param periodStartTimestamp First second of UTC month used for period 0.
      * @param enforceCurrentOrNextPeriod Whether to restrict registration to current/next period.
      */
     function initialize(
         address worldIDVerifier,
         uint64 periodStartTimestamp,
-        uint64 periodLengthSeconds,
         bool enforceCurrentOrNextPeriod
     ) public virtual initializer {
         if (worldIDVerifier == address(0)) revert ZeroAddress();
-        if (periodLengthSeconds == 0) revert InvalidPeriodLength();
+        if (!_isUtcMonthStart(periodStartTimestamp)) revert InvalidPeriodStartTimestamp(periodStartTimestamp);
 
         __Ownable_init(msg.sender);
         __Ownable2Step_init();
@@ -103,7 +100,6 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
         _worldIDVerifier = IWorldIDVerifier(worldIDVerifier);
         _periodStartTimestamp = periodStartTimestamp;
-        _periodLengthSeconds = periodLengthSeconds;
         _enforceCurrentOrNextPeriod = enforceCurrentOrNextPeriod;
     }
 
@@ -194,11 +190,6 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IAddressBook
-    function getPeriodLengthSeconds() external view virtual onlyProxy onlyInitialized returns (uint64) {
-        return _periodLengthSeconds;
-    }
-
-    /// @inheritdoc IAddressBook
     function getEnforceCurrentOrNextPeriod() external view virtual onlyProxy onlyInitialized returns (bool) {
         return _enforceCurrentOrNextPeriod;
     }
@@ -229,6 +220,13 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     //                   INTERNAL FUNCTIONS                   //
     ////////////////////////////////////////////////////////////
 
+    /**
+     * @notice Registers an account for a period+action epoch after proof verification.
+     * @param account The account to mark as registered.
+     * @param targetPeriod The target period index for registration.
+     * @param epoch The action-scoped epoch data.
+     * @param proof The World ID proof payload to verify.
+     */
     function _register(address account, uint32 targetPeriod, EpochData calldata epoch, RegistrationProof calldata proof)
         internal
         virtual
@@ -244,8 +242,7 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
             }
         }
 
-        uint256 epochPeriodEnd =
-            uint256(_periodStartTimestamp) + (uint256(targetPeriod) + 1) * uint256(_periodLengthSeconds);
+        uint256 epochPeriodEnd = _periodEndTimestamp(targetPeriod);
         if (uint256(proof.expiresAtMin) < epochPeriodEnd) {
             revert ExpirationBeforeEpochEnd(proof.expiresAtMin, epochPeriodEnd);
         }
@@ -287,27 +284,155 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         }
     }
 
+    /**
+     * @notice Returns the current period index based on UTC calendar months.
+     * @dev Period `0` starts at `_periodStartTimestamp`; each period is one UTC month.
+     * @return The current period index.
+     */
     function _getCurrentPeriod() internal view virtual returns (uint32) {
         if (block.timestamp < _periodStartTimestamp) revert PeriodNotStarted();
 
-        uint256 period = (block.timestamp - _periodStartTimestamp) / _periodLengthSeconds;
+        (uint256 baseYear, uint256 baseMonth) = _timestampToYearMonth(_periodStartTimestamp);
+        (uint256 currentYear, uint256 currentMonth) = _timestampToYearMonth(block.timestamp);
+
+        uint256 period = _monthIndex(currentYear, currentMonth) - _monthIndex(baseYear, baseMonth);
         if (period > type(uint32).max) revert PeriodOutOfRange();
 
         return uint32(period);
     }
 
+    /**
+     * @notice Computes the storage key for a period+action epoch.
+     * @param period The period index.
+     * @param action The World ID action value.
+     * @return The epoch identifier used in storage mappings.
+     */
     function _computeEpochId(uint32 period, uint256 action) internal pure virtual returns (bytes32) {
         return keccak256(abi.encode(period, action));
     }
 
+    /**
+     * @notice Computes the canonical signal hash bound to an account.
+     * @dev Hashes UTF-8 bytes of the canonical signal string and right-shifts by 8 bits.
+     * @param account The account used to derive the signal.
+     * @return The signal hash expected by the verifier.
+     */
     function _computeSignalHash(address account) internal pure virtual returns (uint256) {
         // Match the authenticator pipeline, which hashes UTF-8 signal bytes.
         string memory signal = _computeSignal(account);
         return uint256(keccak256(bytes(signal))) >> 8;
     }
 
+    /**
+     * @notice Computes the canonical signal string for an account.
+     * @param account The account to encode.
+     * @return The lowercase 0x-prefixed 20-byte hex address string.
+     */
     function _computeSignal(address account) internal pure virtual returns (string memory) {
         return Strings.toHexString(uint256(uint160(account)), 20);
+    }
+
+    /**
+     * @notice Returns the exclusive end timestamp of the given target period.
+     * @dev End timestamp is the first second of the following UTC month.
+     * @param period The target period index.
+     * @return The UTC timestamp for the period end boundary.
+     */
+    function _periodEndTimestamp(uint32 period) internal view returns (uint256) {
+        (uint256 baseYear, uint256 baseMonth) = _timestampToYearMonth(_periodStartTimestamp);
+        uint256 nextMonthIndex = _monthIndex(baseYear, baseMonth) + uint256(period) + 1;
+        (uint256 endYear, uint256 endMonth) = _indexToYearMonth(nextMonthIndex);
+        return _daysFromDate(endYear, endMonth, 1) * SECONDS_PER_DAY;
+    }
+
+    /**
+     * @notice Checks whether a timestamp is exactly at a UTC month boundary.
+     * @param timestamp The timestamp to validate.
+     * @return True if `timestamp` is `YYYY-MM-01 00:00:00 UTC`.
+     */
+    function _isUtcMonthStart(uint256 timestamp) internal pure returns (bool) {
+        if (timestamp % SECONDS_PER_DAY != 0) return false;
+
+        (, , uint256 day) = _daysToDate(timestamp / SECONDS_PER_DAY);
+        return day == 1;
+    }
+
+    /**
+     * @notice Converts a Unix timestamp to UTC year and month components.
+     * @param timestamp The Unix timestamp in seconds.
+     * @return year The UTC year.
+     * @return month The UTC month in range [1..12].
+     */
+    function _timestampToYearMonth(uint256 timestamp) internal pure returns (uint256 year, uint256 month) {
+        (year, month,) = _daysToDate(timestamp / SECONDS_PER_DAY);
+    }
+
+    /**
+     * @notice Converts year-month to a monotonic month index.
+     * @param year The UTC year.
+     * @param month The UTC month in range [1..12].
+     * @return The zero-based month index used for period arithmetic.
+     */
+    function _monthIndex(uint256 year, uint256 month) internal pure returns (uint256) {
+        return year * 12 + (month - 1);
+    }
+
+    /**
+     * @notice Converts a monotonic month index back to year-month components.
+     * @param index The zero-based month index.
+     * @return year The UTC year.
+     * @return month The UTC month in range [1..12].
+     */
+    function _indexToYearMonth(uint256 index) internal pure returns (uint256 year, uint256 month) {
+        year = index / 12;
+        month = (index % 12) + 1;
+    }
+
+    /**
+     * @notice Converts a UTC date to days since Unix epoch.
+     * @dev Uses the Julian day conversion algorithm.
+     * @param year The UTC year.
+     * @param month The UTC month in range [1..12].
+     * @param day The UTC day in range [1..31].
+     * @return _days Number of days since 1970-01-01 UTC.
+     */
+    function _daysFromDate(uint256 year, uint256 month, uint256 day) internal pure returns (uint256 _days) {
+        int256 _year = int256(year);
+        int256 _month = int256(month);
+        int256 _day = int256(day);
+
+        int256 __days = _day - 32075 + 1461 * (_year + 4800 + (_month - 14) / 12) / 4
+            + 367 * (_month - 2 - ((_month - 14) / 12) * 12) / 12 - 3 * ((_year + 4900 + (_month - 14) / 12) / 100) / 4
+            - OFFSET19700101;
+
+        _days = uint256(__days);
+    }
+
+    /**
+     * @notice Converts days since Unix epoch into a UTC date.
+     * @dev Uses the Julian day conversion algorithm.
+     * @param _days Number of days since 1970-01-01 UTC.
+     * @return year The UTC year.
+     * @return month The UTC month in range [1..12].
+     * @return day The UTC day in range [1..31].
+     */
+    function _daysToDate(uint256 _days) internal pure returns (uint256 year, uint256 month, uint256 day) {
+        int256 __days = int256(_days);
+
+        int256 L = __days + 68569 + OFFSET19700101;
+        int256 N = 4 * L / 146097;
+        L = L - (146097 * N + 3) / 4;
+        int256 _year = 4000 * (L + 1) / 1461001;
+        L = L - 1461 * _year / 4 + 31;
+        int256 _month = 80 * L / 2447;
+        int256 _day = L - 2447 * _month / 80;
+        L = _month / 11;
+        _month = _month + 2 - 12 * L;
+        _year = 100 * (N - 49) + _year + L;
+
+        year = uint256(_year);
+        month = uint256(_month);
+        day = uint256(_day);
     }
 
     /// @inheritdoc UUPSUpgradeable
