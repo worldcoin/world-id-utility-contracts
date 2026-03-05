@@ -6,6 +6,7 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 
 import {AddressBook} from "../../src/address-book/AddressBook.sol";
 import {IAddressBook} from "../../src/address-book/interfaces/IAddressBook.sol";
+import {DateTimeLib} from "../../src/address-book/libraries/DateTimeLib.sol";
 
 contract MockWorldIDVerifier {
     error ProofInvalid();
@@ -273,11 +274,14 @@ contract AddressBookTest is Test {
     function testRegisterRevertsWhenExpiresBeforeTargetPeriodEnd() public {
         uint32 currentPeriod = addressBook.getCurrentPeriod();
         IAddressBook.EpochData memory epoch = _epoch();
+        uint256 epochPeriodEnd = DateTimeLib.periodEndTimestamp(addressBook.getPeriodStartTimestamp(), currentPeriod);
 
         IAddressBook.RegistrationProof memory proof = _proof(445);
         proof.expiresAtMin = uint64(addressBook.getPeriodStartTimestamp());
 
-        vm.expectRevert(IAddressBook.ExpirationBeforeEpochEnd.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAddressBook.ExpirationBeforeEpochEnd.selector, proof.expiresAtMin, epochPeriodEnd)
+        );
         vm.prank(user1);
         addressBook.register(user1, currentPeriod, epoch, proof);
     }
