@@ -103,8 +103,22 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
 
     /**
      * @dev Returns whether the signature is authorized for a given hash.
-     * @param hash Hash of the data to be signed
+     * @param hash Hash of the data to be signed. This is usually an EIP-712 typed data signature.
      * @param signature Signature byte array associated with `hash`
+     * @custom:example Digest hash
+     *
+     *  ```
+     *  bytes32 messageHash = _hashTypedDataV4(
+     *        keccak256(abi.encode(
+     *            RECOVER_ACCOUNT_TYPEHASH,
+     *            leafIndex,
+     *            newAuthenticatorAddress,
+     *            newAuthenticatorPubkey,
+     *            newOffchainSignerCommitment,
+     *            nonce
+     *        ))
+     *    )
+     *  ```
      */
     function isValidSignature(bytes32 hash, bytes calldata signature)
         external
@@ -122,18 +136,32 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
         revert SignerNotAuthorized(signer);
     }
 
+    /**
+     * @dev Checks whether a specific address is authorized to sign on behalf of the contract.
+     * @param signer The address being checked
+     */
     function isAuthorizedSigner(address signer) external view virtual onlyProxy onlyInitialized returns (bool) {
         return _signers.contains(signer);
     }
 
+    /**
+     * @dev The number of authorized signers to sign on behalf of the contract.
+     */
     function signerCount() external view virtual onlyProxy onlyInitialized returns (uint256) {
         return _signers.length();
     }
 
+    /**
+     * @dev Gets the signer address at a specific index.
+     * @param index The index of the signer to retrieve (between 0 and `signerCount() - 1`)
+     */
     function signerAt(uint256 index) external view virtual onlyProxy onlyInitialized returns (address) {
         return _signers.at(index);
     }
 
+    /**
+     * @dev Gets the full list of signer addresses authorized to sign on behalf of the contract.
+     */
     function getSigners() external view virtual onlyProxy onlyInitialized returns (address[] memory) {
         return _signers.values();
     }
@@ -142,23 +170,35 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
     //                      Owner Functions                   //
     ////////////////////////////////////////////////////////////
 
+    /**
+     * @dev Adds a signer to the authorized set. Only callable by the owner.
+     */
     function addSigner(address signer) external virtual onlyOwner onlyProxy onlyInitialized {
         if (signer == address(0)) revert ZeroAddress();
         if (!_signers.add(signer)) revert SignerAlreadyAuthorized(signer);
         emit SignerAdded(signer);
     }
 
+    /**
+     * @dev Removes a signer from the authorized set. Only callable by the owner.
+     */
     function removeSigner(address signer) external virtual onlyOwner onlyProxy onlyInitialized {
         if (!_signers.remove(signer)) revert SignerNotAuthorized(signer);
         emit SignerRemoved(signer);
     }
 
+    /**
+     * @dev Overrides `Ownable2StepUpgradeable.renounceOwnership` to disable renouncing ownership.
+     *
+     */
     function renounceOwnership() public view override onlyOwner {
         revert RenounceOwnershipDisabled();
     }
 
-    /// @notice Is called when upgrading the contract to check whether it should be performed.
-    /// @param newImplementation The address of the implementation being upgraded to.
-    /// @custom:reverts string If not called by the proxy owner.
+    /**
+     * @notice Is called when upgrading the contract to check whether it should be performed.
+     * @param newImplementation The address of the implementation being upgraded to.
+     * @custom:reverts string If not called by the proxy owner.
+     */
     function _authorizeUpgrade(address newImplementation) internal virtual override onlyOwner {}
 }
