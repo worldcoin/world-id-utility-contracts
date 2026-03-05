@@ -144,7 +144,7 @@ contract AddressBookTest is Test {
         IAddressBook.EpochData memory epoch = _epoch();
         uint32 period = addressBook.getCurrentPeriod();
 
-        bytes32 expected = bytes32(uint256(ACTION));
+        bytes32 expected = keccak256(abi.encode(period, ACTION));
         assertEq(addressBook.computeEpochId(period, epoch), expected);
     }
 
@@ -169,7 +169,7 @@ contract AddressBookTest is Test {
         assertTrue(addressBook.isRegisteredForPeriod(period, epoch, user1));
     }
 
-    function testVerifyRemainsTrueAfterPeriodRollover() public {
+    function testVerifyIsPeriodScopedAfterPeriodRollover() public {
         uint32 period = addressBook.getCurrentPeriod();
         IAddressBook.EpochData memory epoch = _epoch();
 
@@ -179,7 +179,7 @@ contract AddressBookTest is Test {
 
         vm.warp(block.timestamp + PERIOD_LENGTH_SECONDS);
 
-        assertTrue(addressBook.verify(epoch, user1));
+        assertFalse(addressBook.verify(epoch, user1));
         assertTrue(addressBook.isRegisteredForPeriod(period, epoch, user1));
     }
 
@@ -192,7 +192,8 @@ contract AddressBookTest is Test {
         vm.prank(user1);
         addressBook.register(user1, nextPeriod, epoch, _proof(222));
 
-        assertTrue(addressBook.verify(epoch, user1));
+        assertFalse(addressBook.verify(epoch, user1));
+        assertTrue(addressBook.isRegisteredForPeriod(nextPeriod, epoch, user1));
 
         vm.warp(block.timestamp + PERIOD_LENGTH_SECONDS);
 
@@ -246,7 +247,7 @@ contract AddressBookTest is Test {
         addressBook.register(user1, farFuturePeriod, epoch, _proof(444));
 
         assertTrue(addressBook.isRegisteredForPeriod(farFuturePeriod, epoch, user1));
-        assertTrue(addressBook.verify(epoch, user1));
+        assertFalse(addressBook.verify(epoch, user1));
     }
 
     function testRegisterRevertsWhenExpiresBeforeTargetPeriodEnd() public {

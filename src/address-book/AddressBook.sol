@@ -131,13 +131,13 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         onlyInitialized
         returns (bool)
     {
-        _getCurrentPeriod();
-        bytes32 epochId = _computeEpochId(epoch.action);
+        uint32 currentPeriod = _getCurrentPeriod();
+        bytes32 epochId = _computeEpochId(currentPeriod, epoch.action);
         return _epochAddressRegistered[epochId][account];
     }
 
     /// @inheritdoc IAddressBook
-    function isRegisteredForPeriod(uint32, EpochData calldata epoch, address account)
+    function isRegisteredForPeriod(uint32 period, EpochData calldata epoch, address account)
         external
         view
         virtual
@@ -145,7 +145,7 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         onlyInitialized
         returns (bool)
     {
-        bytes32 epochId = _computeEpochId(epoch.action);
+        bytes32 epochId = _computeEpochId(period, epoch.action);
         return _epochAddressRegistered[epochId][account];
     }
 
@@ -155,8 +155,8 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IAddressBook
-    function computeEpochId(uint32, EpochData calldata epoch) external pure virtual returns (bytes32) {
-        return _computeEpochId(epoch.action);
+    function computeEpochId(uint32 period, EpochData calldata epoch) external pure virtual returns (bytes32) {
+        return _computeEpochId(period, epoch.action);
     }
 
     /// @inheritdoc IAddressBook
@@ -250,7 +250,7 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
             revert ExpirationBeforeEpochEnd(proof.expiresAtMin, epochPeriodEnd);
         }
 
-        bytes32 epochId = _computeEpochId(epoch.action);
+        bytes32 epochId = _computeEpochId(targetPeriod, epoch.action);
 
         if (_epochNullifierUsed[epochId][proof.nullifier]) {
             revert NullifierAlreadyUsed(proof.nullifier, epochId);
@@ -296,8 +296,8 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         return uint32(period);
     }
 
-    function _computeEpochId(uint256 action) internal pure virtual returns (bytes32) {
-        return bytes32(action);
+    function _computeEpochId(uint32 period, uint256 action) internal pure virtual returns (bytes32) {
+        return keccak256(abi.encode(period, action));
     }
 
     function _computeSignalHash(address account) internal pure virtual returns (uint256) {
