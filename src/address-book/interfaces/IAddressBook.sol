@@ -36,13 +36,36 @@ interface IAddressBook {
     //                        ERRORS                          //
     ////////////////////////////////////////////////////////////
 
+    /// @notice Thrown when `periodLengthSeconds` is set to zero.
     error InvalidPeriodLength();
+
+    /// @notice Thrown when registration/verification is attempted before period 0 start.
     error PeriodNotStarted();
+
+    /// @notice Thrown when computed period does not fit into `uint32`.
     error PeriodOutOfRange();
+
+    /// @notice Thrown when `register` is called with the zero address as `account`.
     error InvalidAccount();
+
+    /// @notice Thrown when `targetPeriod` is not allowed by current registration policy.
+    /// @param targetPeriod The user-provided target period.
+    /// @param currentPeriod The current active period at call time.
     error InvalidTargetPeriod(uint32 targetPeriod, uint32 currentPeriod);
+
+    /// @notice Thrown when proof expiry does not cover the full target period.
+    /// @param expiresAtMin The expiry bound carried in the proof.
+    /// @param epochPeriodEnd The required minimum expiry for the target period end.
     error ExpirationBeforeEpochEnd(uint64 expiresAtMin, uint256 epochPeriodEnd);
+
+    /// @notice Thrown when a nullifier was already consumed for the same epoch key.
+    /// @param nullifier The duplicate nullifier.
+    /// @param epochId The epoch key where the nullifier was already used.
     error NullifierAlreadyUsed(uint256 nullifier, bytes32 epochId);
+
+    /// @notice Thrown when an address is already registered for the same epoch key.
+    /// @param account The duplicate account.
+    /// @param epochId The epoch key where the account is already registered.
     error AddressAlreadyRegistered(address account, bytes32 epochId);
 
     ////////////////////////////////////////////////////////////
