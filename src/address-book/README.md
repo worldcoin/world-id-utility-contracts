@@ -1,6 +1,6 @@
 # AddressBook
 
-`AddressBook` is an action-scoped soft-cache for World ID proof verification results.
+`AddressBook` is an action-scoped soft-cache for World ID proof verification results. It also acts as its own RP, using a single `rpId` configured at initialization.
 
 ## Core model
 
@@ -16,7 +16,7 @@
 `register(account, targetPeriod, epoch, proof)` verifies the World ID proof and stores the result under
 `epochId(targetPeriod, epoch)`.
 
-`proof` carries the verifier public inputs needed by `WorldIDVerifier`, including `rpId`.
+`proof` carries the verifier public inputs needed by `WorldIDVerifier`, except `rpId`, which is read from contract state.
 
 Constraints:
 
@@ -72,7 +72,7 @@ Assume:
 
 ### 1) Initial registration in January
 
-1. A prover gets a valid World ID uniqueness proof for `(rpId=42, action=A_JAN)` and `signal = userAddress`.
+1. A prover gets a valid World ID uniqueness proof for `(rpId=addressBook.rpId, action=A_JAN)` and `signal = userAddress`.
 2. Any caller can submit registration:
    - `register(userAddress, 10, epoch, proof)`
 3. Contract verifies proof through `WorldIDVerifier.verify(...)` and stores:
@@ -107,3 +107,4 @@ Notes:
 
 - If `enforceCurrentOrNextPeriod` is `true`, registering for period `12+` while current is `10` reverts.
 - The contract treats `action` as provided by the RP flow.
+- The contract always verifies against its configured `rpId`; callers do not choose the RP per registration.

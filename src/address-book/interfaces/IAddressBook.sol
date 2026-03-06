@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 /**
  * @title IAddressBook
  * @author World Contributors
- * @notice Soft-cache contract for action-scoped World ID verification results.
+ * @notice Soft-cache contract for action-scoped World ID verification results, acting as its own RP.
  */
 interface IAddressBook {
     ////////////////////////////////////////////////////////////
@@ -21,10 +21,10 @@ interface IAddressBook {
 
     /**
      * @notice World ID proof payload needed for registration.
+     * @dev The RP id is configured on the contract and is not supplied per proof.
      */
     struct RegistrationProof {
         uint256 nullifier;
-        uint64 rpId;
         uint256 nonce;
         uint64 expiresAtMin;
         uint64 issuerSchemaId;
@@ -147,6 +147,11 @@ interface IAddressBook {
      * @dev This must be the first second of a UTC calendar month.
      */
     function getPeriodStartTimestamp() external view returns (uint64);
+
+    /**
+     * @notice Returns the RP id configured on the contract.
+     */
+    function getRpId() external view returns (uint64);
 
     /**
      * @notice Returns whether registration is limited to current or next period.

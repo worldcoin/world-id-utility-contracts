@@ -12,7 +12,7 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 /**
  * @title AddressBook
  * @author World Contributors
- * @notice Action-scoped soft-cache for World ID proof verifications.
+ * @notice Action-scoped soft-cache for World ID proof verifications, acting as its own RP.
  * @dev Designed for proxy deployments (UUPS).
  */
 contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IAddressBook {
@@ -48,6 +48,9 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     /// @dev epochId => nullifier => used.
     mapping(bytes32 => mapping(uint256 => bool)) internal _epochNullifierUsed;
 
+    /// @dev RP id used for all verifier calls made by this address book.
+    uint64 internal _rpId;
+
     /// @notice Ensures the implementation has been initialized via proxy.
     modifier onlyInitialized() {
         _onlyInitialized();
@@ -70,10 +73,11 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     /**
      * @notice Initializes the AddressBook contract.
      * @param worldIDVerifier Address of WorldIDVerifier.
+     * @param rpId Relying-party identifier bound to this address book.
      * @param periodStartTimestamp First second of UTC month used for period 0.
      * @param enforceCurrentOrNextPeriod Whether to restrict registration to current/next period.
      */
-    function initialize(address worldIDVerifier, uint64 periodStartTimestamp, bool enforceCurrentOrNextPeriod)
+    function initialize(address worldIDVerifier, uint64 rpId, uint64 periodStartTimestamp, bool enforceCurrentOrNextPeriod)
         public
         virtual
         initializer
@@ -87,6 +91,7 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         __Ownable2Step_init();
 
         _worldIDVerifier = IWorldIDVerifier(worldIDVerifier);
+        _rpId = rpId;
         _periodStartTimestamp = periodStartTimestamp;
         _enforceCurrentOrNextPeriod = enforceCurrentOrNextPeriod;
     }
@@ -178,6 +183,11 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IAddressBook
+    function getRpId() external view virtual onlyProxy onlyInitialized returns (uint64) {
+        return _rpId;
+    }
+
+    /// @inheritdoc IAddressBook
     function getEnforceCurrentOrNextPeriod() external view virtual onlyProxy onlyInitialized returns (bool) {
         return _enforceCurrentOrNextPeriod;
     }
@@ -250,7 +260,7 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         _worldIDVerifier.verify(
             proof.nullifier,
             epoch.action,
-            proof.rpId,
+            _rpId,
             proof.nonce,
             signalHash,
             proof.expiresAtMin,
