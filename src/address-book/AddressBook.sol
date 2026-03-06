@@ -84,6 +84,7 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         bool enforceCurrentOrNextPeriod
     ) public virtual initializer {
         if (worldIDVerifier == address(0)) revert ZeroAddress();
+        if (rpId == 0) revert InvalidRpId();
         if (!DateTimeLib.isUtcMonthStart(periodStartTimestamp)) {
             revert InvalidPeriodStartTimestamp(periodStartTimestamp);
         }
@@ -215,6 +216,16 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         emit EnforceCurrentOrNextPeriodUpdated(oldValue, enabled);
     }
 
+    /// @inheritdoc IAddressBook
+    function updateRpId(uint64 newRpId) external virtual onlyOwner onlyProxy onlyInitialized {
+        if (newRpId == 0) revert InvalidRpId();
+
+        uint64 oldRpId = _rpId;
+        _rpId = newRpId;
+
+        emit RpIdUpdated(oldRpId, newRpId);
+    }
+
     ////////////////////////////////////////////////////////////
     //                   INTERNAL FUNCTIONS                   //
     ////////////////////////////////////////////////////////////
@@ -231,6 +242,10 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         virtual
     {
         uint32 currentPeriod = _getCurrentPeriod();
+
+        if (targetPeriod < currentPeriod) {
+            revert InvalidTargetPeriod(targetPeriod, currentPeriod);
+        }
 
         if (_enforceCurrentOrNextPeriod) {
             // Compare "next period" in uint256 space to avoid uint32 overflow when currentPeriod == type(uint32).max.

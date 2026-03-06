@@ -1,6 +1,6 @@
 # AddressBook
 
-`AddressBook` is an action-scoped soft-cache for World ID proof verification results. It also acts as its own RP, using a single `rpId` configured at initialization.
+`AddressBook` is an action-scoped soft-cache for World ID proof verification results. It also acts as its own RP, using a single non-zero `rpId` configured at initialization.
 
 ## Core model
 
@@ -22,6 +22,8 @@ Constraints:
 
 - one nullifier per `(period, action)` epoch key
 - one address per `(period, action)` epoch key
+- `rpId` must be non-zero
+- registration for past periods is never allowed
 - optional registration guard for current/next period only
 - `proof.expiresAtMin` must cover the full target period:
   - `expiresAtMin >= firstSecondOfUtcMonth(targetPeriod + 1)`
@@ -106,5 +108,6 @@ If pre-registration is enabled by policy:
 Notes:
 
 - If `enforceCurrentOrNextPeriod` is `true`, registering for period `12+` while current is `10` reverts.
+- Even when `enforceCurrentOrNextPeriod` is `false`, registering for period `9` while current is `10` reverts.
 - The contract treats `action` as provided by the RP flow.
 - The contract always verifies against its configured `rpId`; callers do not choose the RP per registration.

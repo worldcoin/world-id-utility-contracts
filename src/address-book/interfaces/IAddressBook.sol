@@ -59,6 +59,9 @@ interface IAddressBook {
     /// @param epochPeriodEnd The required minimum expiry for the target period end.
     error ExpirationBeforeEpochEnd(uint64 expiresAtMin, uint256 epochPeriodEnd);
 
+    /// @notice Thrown when an RP id of `0` is provided where a configured RP id is required.
+    error InvalidRpId();
+
     /// @notice Thrown when a nullifier was already consumed for the same epoch key.
     /// @param nullifier The duplicate nullifier.
     /// @param epochId The epoch key where the nullifier was already used.
@@ -89,6 +92,11 @@ interface IAddressBook {
      * @notice Emitted when registration period guard is toggled.
      */
     event EnforceCurrentOrNextPeriodUpdated(bool oldValue, bool newValue);
+
+    /**
+     * @notice Emitted when the configured RP id is updated.
+     */
+    event RpIdUpdated(uint64 oldRpId, uint64 newRpId);
 
     ////////////////////////////////////////////////////////////
     //                   EXTERNAL FUNCTIONS                   //
@@ -171,4 +179,9 @@ interface IAddressBook {
      * @notice Toggles whether registration is restricted to current/next period.
      */
     function setEnforceCurrentOrNextPeriod(bool enabled) external;
+
+    /**
+     * @notice Updates the RP id used for proof verification.
+     */
+    function updateRpId(uint64 newRpId) external;
 }
