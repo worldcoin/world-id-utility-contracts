@@ -1,113 +1,103 @@
 # AddressBook
 
-`AddressBook` is an action-scoped soft-cache for World ID proof verification results. It also acts as its own RP, using a single non-zero `rpId` configured at initialization.
+`AddressBook` is a period-scoped soft-cache for World ID proof verification results. Each deployment acts as its own RP: it is initialized with a single non-zero `rpId`, and it derives exactly one valid World ID action for each monthly period.
 
 ## Core model
 
-- Context: `EpochData { action }`
-- Active period: computed as UTC calendar months from `periodStartTimestamp`
-- `periodStartTimestamp` must be the first second of a UTC month (`YYYY-MM-01 00:00:00 UTC`)
-- Date conversion and month arithmetic are implemented in `libraries/DateTimeLib.sol`
-- Storage key: `epochId = keccak256(abi.encode(period, action))`
-- `targetPeriod` is part of the storage key at registration time
+- `periodStartTimestamp` defines period `0` and must be the first second of a UTC month (`YYYY-MM-01 00:00:00 UTC`)
+- each period is one UTC calendar month
+- each period has exactly one action, derived deterministically by the contract
+- callers do not choose the RP id or the action
+- storage is period-scoped:
+  - `registered[period][account]`
+  - `nullifierUsed[period][nullifier]`
 
-## Registration
+## Action derivation
 
-`register(account, targetPeriod, epoch, proof)` verifies the World ID proof and stores the result under
-`epochId(targetPeriod, epoch)`.
+The action for a period is derived as a World ID field element using the same reduction rule used in the protocol primitives for arbitrary bytes:
 
-`proof` carries the verifier public inputs needed by `WorldIDVerifier`, except `rpId`, which is read from contract state.
+```text
+action(period) = uint256(keccak256(
+  abi.encodePacked("WORLD_ID_ADDRESS_BOOK_ACTION", address(this), period)
+)) >> 8
+```
 
-Constraints:
+This gives each address-book deployment its own monthly action schedule while keeping every action inside the field.
 
-- one nullifier per `(period, action)` epoch key
-- one address per `(period, action)` epoch key
-- `rpId` must be non-zero
-- registration for past periods is never allowed
-- optional registration guard for current/next period only
-- `proof.expiresAtMin` must cover the full target period:
-  - `expiresAtMin >= firstSecondOfUtcMonth(targetPeriod + 1)`
+Use:
 
-## Verification
+- `getCurrentAction()` for the current period
+- `getActionForPeriod(period)` for an explicit period
 
-`verify(epoch, account)` enforces a valid current period, then performs a period+action scoped lookup:
+A frontend or prover should query one of these helpers before generating the proof.
 
-- compute `currentPeriod`
-- lookup `epochId(currentPeriod, epoch)`
+## Public API
 
-Because `period` is part of `epochId`, verification naturally rolls over by period.
+### Register current period
+
+```solidity
+register(address account, RegistrationProof proof)
+```
+
+Verifies the proof against:
+
+- `rpId` stored in the contract
+- the action derived for the current period
+- the canonical signal derived from `account`
+
+On success, the contract marks `account` and `nullifier` as used for the current period.
+
+### Register next period
+
+```solidity
+registerNextPeriod(address account, RegistrationProof proof)
+```
+
+Same flow as `register`, but it targets `currentPeriod + 1`. This allows pre-registration for the next month without exposing arbitrary period selection in the public API.
+
+### Verify current period
+
+```solidity
+verify(address account) -> bool
+```
+
+Returns whether `account` is registered for the current period.
+
+### Raw historical lookup
+
+```solidity
+isRegisteredForPeriod(uint32 period, address account) -> bool
+```
+
+Returns whether `account` was registered for a specific period.
+
+## Registration rules
+
+A registration succeeds only if all of the following hold:
+
+- `account != address(0)`
+- `rpId != 0` at initialization
+- the proof expiry covers the full target period:
+  - `proof.expiresAtMin >= periodEndTimestamp(periodStartTimestamp, targetPeriod)`
+- the nullifier has not already been used in the target period
+- the account has not already been registered in the target period
+- `WorldIDVerifier.verify(...)` accepts the proof for the derived `(rpId, action, signalHash)` tuple
 
 ## Signal binding
 
-The canonical UTF-8 signal string is just the registered account address hex string:
+The canonical signal is the lowercase hex string form of the registered account:
 
-`signal = "<accountHex>"`
+```text
+signal = Strings.toHexString(uint256(uint160(account)), 20)
+signalHash = uint256(keccak256(bytes(signal))) >> 8
+```
 
-`signalHash = uint256(keccak256(bytes(signal))) >> 8`
+This binds the proof to the account being registered. Any caller may submit the transaction, but the proof must still be generated for that specific account signal.
 
-This matches the authenticator path (`RequestItem.signal` -> hash raw UTF-8 bytes) and binds the proof to the registered account.
+## Period rollover
 
-## Security Invariants
+Verification is period-scoped by design:
 
-1. **Per-period+action nullifier uniqueness**
-- A nullifier can be consumed only once within the same `epochId` (period, action).
-
-2. **Per-period+action address uniqueness**
-- The same account cannot be re-registered in the same `epochId` (period, action).
-
-3. **Proof/account binding**
-- `signalHash` binds the proof to the registered account.
-
-4. **Permissionless registration**
-- Third parties may register an account if they provide a valid proof bound to that account signal.
-
-5. **Target-period expiry floor**
-- Registration requires `expiresAtMin` to be at least the end of the target period.
-
-## E2E example
-
-Assume:
-
-- `periodStartTimestamp = 2025-01-01 00:00:00 UTC`
-- `epoch = EpochData { action: A_JAN }`
-- current period at start is `P=10` (January)
-
-### 1) Initial registration in January
-
-1. A prover gets a valid World ID uniqueness proof for `(rpId=addressBook.rpId, action=A_JAN)` and `signal = userAddress`.
-2. Any caller can submit registration:
-   - `register(userAddress, 10, epoch, proof)`
-3. Contract verifies proof through `WorldIDVerifier.verify(...)` and stores:
-   - `registered[epochId(10, A_JAN)][userAddress] = true`
-4. Contract enforces `proof.expiresAtMin` is at least the end of period `10`.
-
-### 2) Repeated checks in January
-
-1. RP calls:
-   - `verify(epoch, userAddress)`
-2. Contract computes current period (`10`) and checks `epochId(10, A_JAN)`.
-3. Result is `true` with a cheap storage lookup (no new full proof verification).
-
-### 3) February rollover
-
-1. Time moves forward by one period; now current period is `11`.
-2. RP calls again:
-   - `verify(epoch, userAddress)`
-3. Contract now checks `epochId(11, A_JAN)`.
-4. Result is `false` unless user also registered for period `11`.
-
-### 4) Pre-register next period
-
-If pre-registration is enabled by policy:
-
-1. During period `10`, user can register for period `11`:
-   - `register(userAddress, 11, EpochData{action: A_FEB}, proofForAFEB)`
-2. Before rollover, `verify(EpochData{A_FEB}, userAddress)` is `false` because current period is still `10`.
-3. After rollover to period `11`, the same call returns `true`.
-
-Notes:
-
-- If `enforceCurrentOrNextPeriod` is `true`, registering for period `12+` while current is `10` reverts.
-- Even when `enforceCurrentOrNextPeriod` is `false`, registering for period `9` while current is `10` reverts.
-- The contract treats `action` as provided by the RP flow.
-- The contract always verifies against its configured `rpId`; callers do not choose the RP per registration.
+- if a user registers in the current month, `verify(account)` returns `true` for the rest of that month
+- when the month rolls over, `verify(account)` switches to the new current period
+- to remain valid in the new month, the user must register again for that month, either after rollover with `register(...)` or before rollover with `registerNextPeriod(...)`
