@@ -93,8 +93,9 @@ contract AddressBookTest is Test {
         verifier = new MockWorldIDVerifier();
         AddressBook implementation = new AddressBook();
 
-        bytes memory initData =
-            abi.encodeWithSelector(AddressBook.initialize.selector, address(verifier), uint64(block.timestamp), true);
+        bytes memory initData = abi.encodeWithSelector(
+            AddressBook.initialize.selector, address(verifier), RP_ID, uint64(block.timestamp), true
+        );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         addressBook = AddressBook(address(proxy));
@@ -114,7 +115,6 @@ contract AddressBookTest is Test {
 
         return IAddressBook.RegistrationProof({
             nullifier: nullifier,
-            rpId: RP_ID,
             nonce: 77,
             expiresAtMin: type(uint64).max,
             issuerSchemaId: 8,
@@ -141,6 +141,7 @@ contract AddressBookTest is Test {
 
     function testInitializeAndGetters() public view {
         assertEq(addressBook.getWorldIDVerifier(), address(verifier));
+        assertEq(addressBook.getRpId(), RP_ID);
         assertEq(addressBook.getPeriodStartTimestamp(), PERIOD_START_TIMESTAMP);
         assertTrue(addressBook.getEnforceCurrentOrNextPeriod());
         assertEq(addressBook.getCurrentPeriod(), 0);
@@ -152,7 +153,7 @@ contract AddressBookTest is Test {
 
         uint64 invalidPeriodStartTimestamp = PERIOD_START_TIMESTAMP + 1;
         bytes memory initData = abi.encodeWithSelector(
-            AddressBook.initialize.selector, address(localVerifier), invalidPeriodStartTimestamp, true
+            AddressBook.initialize.selector, address(localVerifier), RP_ID, invalidPeriodStartTimestamp, true
         );
 
         vm.expectRevert(
@@ -238,7 +239,7 @@ contract AddressBookTest is Test {
         AddressBook implementation = new AddressBook();
 
         bytes memory initData =
-            abi.encodeWithSelector(AddressBook.initialize.selector, address(localVerifier), uint64(0), true);
+            abi.encodeWithSelector(AddressBook.initialize.selector, address(localVerifier), RP_ID, uint64(0), true);
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         AddressBook localAddressBook = AddressBook(address(proxy));
