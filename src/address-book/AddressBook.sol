@@ -9,7 +9,6 @@ import {IWorldIDVerifier} from "./interfaces/IWorldIDVerifier.sol";
 import {DateTimeLib} from "./libraries/DateTimeLib.sol";
 import {ByteHasher} from "./libraries/ByteHasher.sol";
 
-// @inheritdoc IAddressBook
 contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IAddressBook {
     using ByteHasher for bytes;
 
@@ -72,6 +71,7 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
      * @notice Initializes the AddressBook contract.
      * @param worldIDVerifier Address of WorldIDVerifier.
      * @param rpId Relying-party identifier bound to this address book.
+     * @param issuerSchemaId The expected issuer schema id for proof verification.
      * @param periodStartTimestamp First second of UTC month used for period 0.
      */
     function initialize(address worldIDVerifier, uint64 rpId, uint64 issuerSchemaId, uint64 periodStartTimestamp)
@@ -183,17 +183,17 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
      * @param proof The World ID proof payload to verify.
      */
     function _register(address account, uint32 targetPeriod, RegistrationProof calldata proof) internal virtual {
-        uint256 periodEnd = DateTimeLib.periodEndTimestamp(_periodStartTimestamp, targetPeriod);
-        if (uint256(proof.expiresAtMin) < periodEnd) {
-            revert ExpirationBeforePeriodEnd(proof.expiresAtMin, periodEnd);
-        }
-
         if (_periodNullifierUsed[targetPeriod][proof.nullifier]) {
             revert NullifierAlreadyUsed(proof.nullifier, targetPeriod);
         }
 
         if (_periodAddressRegistered[targetPeriod][account]) {
             revert AddressAlreadyRegistered(account, targetPeriod);
+        }
+
+        uint256 periodEnd = DateTimeLib.periodEndTimestamp(_periodStartTimestamp, targetPeriod);
+        if (uint256(proof.expiresAtMin) < periodEnd) {
+            revert ExpirationBeforePeriodEnd(proof.expiresAtMin, periodEnd);
         }
 
         uint256 action = _getActionForPeriod(targetPeriod);
@@ -236,7 +236,7 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     /**
      * @notice Computes the action for a period as a field element.
-     * @dev Uses a domain-separated keccak256 hash reduced via `>> 8` to fit the field.
+     * @dev Hashes `abi.encodePacked(address(this), period)` and reduces via `>> 8` to fit the field.
      */
     function _getActionForPeriod(uint32 period) internal view virtual returns (uint256) {
         return abi.encodePacked(address(this), period).hashToField();
@@ -263,6 +263,16 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         _worldIDVerifier = IWorldIDVerifier(newWorldIDVerifier);
 
         emit WorldIDVerifierUpdated(oldWorldIDVerifier, newWorldIDVerifier);
+    }
+
+    /// @inheritdoc IAddressBook
+    function updateIssuerSchemaId(uint64 newIssuerSchemaId) external virtual onlyOwner onlyProxy onlyInitialized {
+        if (newIssuerSchemaId == 0) revert InvalidIssuerSchemaId();
+
+        uint64 oldIssuerSchemaId = _issuerSchemaId;
+        _issuerSchemaId = newIssuerSchemaId;
+
+        emit IssuerSchemaIdUpdated(oldIssuerSchemaId, newIssuerSchemaId);
     }
 
     /// @inheritdoc UUPSUpgradeable

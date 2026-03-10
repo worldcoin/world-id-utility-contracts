@@ -379,4 +379,30 @@ contract AddressBookTest is Test {
         addressBook.updateWorldIDVerifier(address(newVerifier));
         assertEq(addressBook.getWorldIDVerifier(), address(newVerifier));
     }
+
+    function testUpdateIssuerSchemaId() public {
+        uint64 newSchemaId = 99;
+
+        addressBook.updateIssuerSchemaId(newSchemaId);
+        assertEq(addressBook.getIssuerSchemaId(), newSchemaId);
+    }
+
+    function testUpdateIssuerSchemaIdRevertsWhenZero() public {
+        vm.expectRevert(abi.encodeWithSelector(IAddressBook.InvalidIssuerSchemaId.selector));
+        addressBook.updateIssuerSchemaId(0);
+    }
+
+    function testUpdateIssuerSchemaIdRevertsForNonOwner() public {
+        vm.prank(address(0xBEEF));
+        vm.expectRevert();
+        addressBook.updateIssuerSchemaId(99);
+    }
+
+    function testUpdateIssuerSchemaIdEmitsEvent() public {
+        uint64 newSchemaId = 99;
+
+        vm.expectEmit();
+        emit IAddressBook.IssuerSchemaIdUpdated(ISSUER_SCHEMA_ID, newSchemaId);
+        addressBook.updateIssuerSchemaId(newSchemaId);
+    }
 }

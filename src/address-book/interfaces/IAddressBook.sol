@@ -83,6 +83,11 @@ interface IAddressBook {
      */
     event WorldIDVerifierUpdated(address oldWorldIDVerifier, address newWorldIDVerifier);
 
+    /**
+     * @notice Emitted when the issuer schema id is updated.
+     */
+    event IssuerSchemaIdUpdated(uint64 oldIssuerSchemaId, uint64 newIssuerSchemaId);
+
     ////////////////////////////////////////////////////////////
     //                   EXTERNAL FUNCTIONS                   //
     ////////////////////////////////////////////////////////////
@@ -153,4 +158,9 @@ interface IAddressBook {
      * @notice Updates the WorldID verifier address.
      */
     function updateWorldIDVerifier(address newWorldIDVerifier) external;
+
+    /**
+     * @notice Updates the issuer schema id used for proof verification.
+     */
+    function updateIssuerSchemaId(uint64 newIssuerSchemaId) external;
 }
