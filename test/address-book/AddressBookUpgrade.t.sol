@@ -38,6 +38,7 @@ contract AddressBookV2Mock is AddressBook {
 
 contract AddressBookUpgradeTest is Test {
     uint64 internal constant RP_ID = 42;
+    uint64 internal constant ISSUER_SCHEMA_ID = 8;
     uint64 internal constant PERIOD_START_TIMESTAMP = 1_735_689_600; // 2025-01-01 00:00:00 UTC
 
     AddressBook internal addressBook;
@@ -51,8 +52,9 @@ contract AddressBookUpgradeTest is Test {
         verifier = new MockWorldIDVerifierUpgrade();
         AddressBook implementation = new AddressBook();
 
-        bytes memory initData =
-            abi.encodeWithSelector(AddressBook.initialize.selector, address(verifier), RP_ID, uint64(block.timestamp));
+        bytes memory initData = abi.encodeWithSelector(
+            AddressBook.initialize.selector, address(verifier), RP_ID, ISSUER_SCHEMA_ID, uint64(block.timestamp)
+        );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         addressBook = AddressBook(address(proxy));
@@ -70,8 +72,6 @@ contract AddressBookUpgradeTest is Test {
             nullifier: nullifier,
             nonce: 77,
             expiresAtMin: type(uint64).max,
-            issuerSchemaId: 8,
-            credentialGenesisIssuedAtMin: 0,
             zeroKnowledgeProof: zkProof
         });
     }

@@ -2,9 +2,12 @@
 pragma solidity ^0.8.13;
 
 /**
- * @title IAddressBook
+ * @title AddressBook
  * @author World Contributors
- * @notice Period-scoped soft-cache for World ID verification results, acting as its own RP.
+ * @notice Period-scoped soft-cache for World ID proof verifications, acting as its own RP.
+ * @dev Designed for proxy deployments (UUPS).
+ * @custom:repo https://github.com/worldcoin/world-id-utility-contracts
+ * @custom:docs https://docs.world.org/mini-apps/reference/address-book
  */
 interface IAddressBook {
     ////////////////////////////////////////////////////////////
@@ -13,14 +16,12 @@ interface IAddressBook {
 
     /**
      * @notice World ID proof payload needed for registration.
-     * @dev The RP id and action are configured/derived by the contract and are not supplied per proof.
+     * @dev Some proof attributes are explicitly expected by the contract.
      */
     struct RegistrationProof {
         uint256 nullifier;
         uint256 nonce;
         uint64 expiresAtMin;
-        uint64 issuerSchemaId;
-        uint256 credentialGenesisIssuedAtMin;
         uint256[5] zeroKnowledgeProof;
     }
 
@@ -49,6 +50,9 @@ interface IAddressBook {
     /// @notice Thrown when an RP id of `0` is provided where a configured RP id is required.
     error InvalidRpId();
 
+    /// @notice Thrown when the provided issuer schema id is not valid during initialization.
+    error InvalidIssuerSchemaId();
+
     /// @notice Thrown when a nullifier was already consumed for the same period.
     /// @param nullifier The duplicate nullifier.
     /// @param period The period where the nullifier was already used.
@@ -59,6 +63,12 @@ interface IAddressBook {
     /// @param period The period where the account is already registered.
     error AddressAlreadyRegistered(address account, uint32 period);
 
+    /// @notice Thrown when a function is called before initialization.
+    error ImplementationNotInitialized();
+
+    /// @notice Thrown when attempting to set an address parameter to zero.
+    error ZeroAddress();
+
     ////////////////////////////////////////////////////////////
     //                        EVENTS                          //
     ////////////////////////////////////////////////////////////
@@ -66,7 +76,7 @@ interface IAddressBook {
     /**
      * @notice Emitted when an address is registered for a period.
      */
-    event AddressRegistered(uint32 indexed period, address indexed account, uint256 action, uint256 nullifier);
+    event AddressRegistered(uint32 indexed period, address indexed account);
 
     /**
      * @notice Emitted when the WorldID verifier contract is updated.
@@ -115,16 +125,6 @@ interface IAddressBook {
     function getCurrentAction() external view returns (uint256);
 
     /**
-     * @notice Computes the canonical signal string for `account`.
-     */
-    function computeSignal(address account) external view returns (string memory);
-
-    /**
-     * @notice Computes the signal hash bound to `account`.
-     */
-    function computeSignalHash(address account) external view returns (uint256);
-
-    /**
      * @notice Returns the WorldID verifier address.
      */
     function getWorldIDVerifier() external view returns (address);
@@ -139,6 +139,11 @@ interface IAddressBook {
      * @notice Returns the RP id configured on the contract.
      */
     function getRpId() external view returns (uint64);
+
+    /**
+     * @notice Returns the expected issuerSchemaId expected for proofs submitted to this contract.
+     */
+    function getIssuerSchemaId() external view returns (uint64);
 
     ////////////////////////////////////////////////////////////
     //                     OWNER FUNCTIONS                    //

@@ -4,34 +4,14 @@ pragma solidity ^0.8.13;
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
-
 import {IAddressBook} from "./interfaces/IAddressBook.sol";
 import {IWorldIDVerifier} from "./interfaces/IWorldIDVerifier.sol";
 import {DateTimeLib} from "./libraries/DateTimeLib.sol";
+import {ByteHasher} from "./libraries/ByteHasher.sol";
 
-/**
- * @title AddressBook
- * @author World Contributors
- * @notice Period-scoped soft-cache for World ID proof verifications, acting as its own RP.
- * @dev Designed for proxy deployments (UUPS).
- */
+// @inheritdoc IAddressBook
 contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IAddressBook {
-    ////////////////////////////////////////////////////////////
-    //                         ERRORS                         //
-    ////////////////////////////////////////////////////////////
-
-    /// @notice Thrown when a function is called before initialization.
-    error ImplementationNotInitialized();
-
-    /// @notice Thrown when attempting to set an address parameter to zero.
-    error ZeroAddress();
-
-    ////////////////////////////////////////////////////////////
-    //                        CONSTANTS                       //
-    ////////////////////////////////////////////////////////////
-
-    string internal constant ACTION_DOMAIN_SEPARATOR = "WORLD_ID_ADDRESS_BOOK_ACTION";
+    using ByteHasher for bytes;
 
     ////////////////////////////////////////////////////////////
     //                        MEMBERS                         //
@@ -55,10 +35,24 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     /// @dev RP id used for all verifier calls made by this address book.
     uint64 internal _rpId;
 
+    /// @dev The expected issuer schema id for the proofs
+    uint64 internal _issuerSchemaId;
+
+    ////////////////////////////////////////////////////////////
+    //                        Modifiers                       //
+    ////////////////////////////////////////////////////////////
+
     /// @notice Ensures the implementation has been initialized via proxy.
     modifier onlyInitialized() {
         _onlyInitialized();
         _;
+    }
+
+    /// @dev Reverts if this implementation has not been initialized.
+    function _onlyInitialized() internal view {
+        if (_getInitializedVersion() == 0) {
+            revert ImplementationNotInitialized();
+        }
     }
 
     ////////////////////////////////////////////////////////////
@@ -80,9 +74,14 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
      * @param rpId Relying-party identifier bound to this address book.
      * @param periodStartTimestamp First second of UTC month used for period 0.
      */
-    function initialize(address worldIDVerifier, uint64 rpId, uint64 periodStartTimestamp) public virtual initializer {
+    function initialize(address worldIDVerifier, uint64 rpId, uint64 issuerSchemaId, uint64 periodStartTimestamp)
+        public
+        virtual
+        initializer
+    {
         if (worldIDVerifier == address(0)) revert ZeroAddress();
         if (rpId == 0) revert InvalidRpId();
+        if (issuerSchemaId == 0) revert InvalidIssuerSchemaId();
         if (!DateTimeLib.isUtcMonthStart(periodStartTimestamp)) {
             revert InvalidPeriodStartTimestamp(periodStartTimestamp);
         }
@@ -92,6 +91,7 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
         _worldIDVerifier = IWorldIDVerifier(worldIDVerifier);
         _rpId = rpId;
+        _issuerSchemaId = issuerSchemaId;
         _periodStartTimestamp = periodStartTimestamp;
     }
 
@@ -153,16 +153,6 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IAddressBook
-    function computeSignal(address account) external view virtual onlyProxy onlyInitialized returns (string memory) {
-        return _computeSignal(account);
-    }
-
-    /// @inheritdoc IAddressBook
-    function computeSignalHash(address account) external view virtual onlyProxy onlyInitialized returns (uint256) {
-        return _computeSignalHash(account);
-    }
-
-    /// @inheritdoc IAddressBook
     function getWorldIDVerifier() external view virtual onlyProxy onlyInitialized returns (address) {
         return address(_worldIDVerifier);
     }
@@ -177,18 +167,9 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         return _rpId;
     }
 
-    ////////////////////////////////////////////////////////////
-    //                    OWNER FUNCTIONS                     //
-    ////////////////////////////////////////////////////////////
-
     /// @inheritdoc IAddressBook
-    function updateWorldIDVerifier(address newWorldIDVerifier) external virtual onlyOwner onlyProxy onlyInitialized {
-        if (newWorldIDVerifier == address(0)) revert ZeroAddress();
-
-        address oldWorldIDVerifier = address(_worldIDVerifier);
-        _worldIDVerifier = IWorldIDVerifier(newWorldIDVerifier);
-
-        emit WorldIDVerifierUpdated(oldWorldIDVerifier, newWorldIDVerifier);
+    function getIssuerSchemaId() external view virtual onlyProxy onlyInitialized returns (uint64) {
+        return _issuerSchemaId;
     }
 
     ////////////////////////////////////////////////////////////
@@ -225,22 +206,15 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
             proof.nonce,
             signalHash,
             proof.expiresAtMin,
-            proof.issuerSchemaId,
-            proof.credentialGenesisIssuedAtMin,
+            _issuerSchemaId,
+            0, // Explicitly this contract does not enforce this constraint
             proof.zeroKnowledgeProof
         );
 
         _periodNullifierUsed[targetPeriod][proof.nullifier] = true;
         _periodAddressRegistered[targetPeriod][account] = true;
 
-        emit AddressRegistered(targetPeriod, account, action, proof.nullifier);
-    }
-
-    /// @dev Reverts if this implementation has not been initialized.
-    function _onlyInitialized() internal view {
-        if (_getInitializedVersion() == 0) {
-            revert ImplementationNotInitialized();
-        }
+        emit AddressRegistered(targetPeriod, account);
     }
 
     /**
@@ -265,27 +239,30 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
      * @dev Uses a domain-separated keccak256 hash reduced via `>> 8` to fit the field.
      */
     function _getActionForPeriod(uint32 period) internal view virtual returns (uint256) {
-        return uint256(keccak256(abi.encodePacked(ACTION_DOMAIN_SEPARATOR, address(this), period))) >> 8;
+        return abi.encodePacked(address(this), period).hashToField();
     }
 
     /**
-     * @notice Computes the canonical signal hash bound to an account.
-     * @dev Hashes UTF-8 bytes of the canonical signal string and right-shifts by 8 bits.
-     * @param account The account used to derive the signal.
-     * @return The signal hash expected by the verifier.
+     * @notice Computes the expected signal for an account being verified.
+     * @param account The account address being verified
+     * @return The signal hash (field element) expected by the verifier.
      */
     function _computeSignalHash(address account) internal pure virtual returns (uint256) {
-        string memory signal = _computeSignal(account);
-        return uint256(keccak256(bytes(signal))) >> 8;
+        return abi.encodePacked(account).hashToField();
     }
 
-    /**
-     * @notice Computes the canonical signal string for an account.
-     * @param account The account to encode.
-     * @return The lowercase 0x-prefixed 20-byte hex address string.
-     */
-    function _computeSignal(address account) internal pure virtual returns (string memory) {
-        return Strings.toHexString(uint256(uint160(account)), 20);
+    ////////////////////////////////////////////////////////////
+    //                    OWNER FUNCTIONS                     //
+    ////////////////////////////////////////////////////////////
+
+    /// @inheritdoc IAddressBook
+    function updateWorldIDVerifier(address newWorldIDVerifier) external virtual onlyOwner onlyProxy onlyInitialized {
+        if (newWorldIDVerifier == address(0)) revert ZeroAddress();
+
+        address oldWorldIDVerifier = address(_worldIDVerifier);
+        _worldIDVerifier = IWorldIDVerifier(newWorldIDVerifier);
+
+        emit WorldIDVerifierUpdated(oldWorldIDVerifier, newWorldIDVerifier);
     }
 
     /// @inheritdoc UUPSUpgradeable
