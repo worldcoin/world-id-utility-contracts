@@ -69,10 +69,7 @@ contract AddressBookUpgradeTest is Test {
         zkProof[4] = 5;
 
         return IAddressBook.RegistrationProof({
-            nullifier: nullifier,
-            nonce: 77,
-            expiresAtMin: type(uint64).max,
-            zeroKnowledgeProof: zkProof
+            nullifier: nullifier, nonce: 77, expiresAtMin: type(uint64).max, zeroKnowledgeProof: zkProof
         });
     }
 

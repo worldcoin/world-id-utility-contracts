@@ -110,10 +110,7 @@ contract AddressBookTest is Test {
         zkProof[4] = 5;
 
         return IAddressBook.RegistrationProof({
-            nullifier: nullifier,
-            nonce: 77,
-            expiresAtMin: type(uint64).max,
-            zeroKnowledgeProof: zkProof
+            nullifier: nullifier, nonce: 77, expiresAtMin: type(uint64).max, zeroKnowledgeProof: zkProof
         });
     }
 
@@ -179,7 +176,11 @@ contract AddressBookTest is Test {
 
         uint64 invalidPeriodStartTimestamp = PERIOD_START_TIMESTAMP + 1;
         bytes memory initData = abi.encodeWithSelector(
-            AddressBook.initialize.selector, address(localVerifier), RP_ID, ISSUER_SCHEMA_ID, invalidPeriodStartTimestamp
+            AddressBook.initialize.selector,
+            address(localVerifier),
+            RP_ID,
+            ISSUER_SCHEMA_ID,
+            invalidPeriodStartTimestamp
         );
 
         vm.expectRevert(
