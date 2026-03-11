@@ -39,7 +39,8 @@ contract AddressBookV2Mock is AddressBook {
 contract AddressBookUpgradeTest is Test {
     uint64 internal constant RP_ID = 42;
     uint64 internal constant ISSUER_SCHEMA_ID = 8;
-    uint64 internal constant PERIOD_START_TIMESTAMP = 1_735_689_600; // 2025-01-01 00:00:00 UTC
+    uint64 internal constant EPOCH_DURATION = 30 days;
+    uint64 internal constant INITIAL_TIMESTAMP = 1_234 * EPOCH_DURATION;
 
     AddressBook internal addressBook;
     MockWorldIDVerifierUpgrade internal verifier;
@@ -47,13 +48,13 @@ contract AddressBookUpgradeTest is Test {
     address internal user1 = address(0x1001);
 
     function setUp() public {
-        vm.warp(PERIOD_START_TIMESTAMP);
+        vm.warp(INITIAL_TIMESTAMP);
 
         verifier = new MockWorldIDVerifierUpgrade();
         AddressBook implementation = new AddressBook();
 
         bytes memory initData = abi.encodeWithSelector(
-            AddressBook.initialize.selector, address(verifier), RP_ID, ISSUER_SCHEMA_ID, uint64(block.timestamp)
+            AddressBook.initialize.selector, address(verifier), RP_ID, ISSUER_SCHEMA_ID, EPOCH_DURATION
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
@@ -74,14 +75,14 @@ contract AddressBookUpgradeTest is Test {
     }
 
     function testUpgradePreservesState() public {
-        uint32 currentPeriod = addressBook.getCurrentPeriod();
+        uint64 currentPeriod = addressBook.getCurrentPeriod();
         uint256 currentAction = addressBook.getCurrentAction();
 
         vm.prank(user1);
         addressBook.register(user1, _proof(111));
 
         assertTrue(addressBook.verify(user1));
-        assertTrue(addressBook.isRegisteredForPeriod(currentPeriod, user1));
+        assertTrue(addressBook.isRegisteredForAction(currentAction, user1));
 
         AddressBookV2Mock implementationV2 = new AddressBookV2Mock();
         addressBook.upgradeToAndCall(address(implementationV2), "");
@@ -89,8 +90,9 @@ contract AddressBookUpgradeTest is Test {
         AddressBookV2Mock upgraded = AddressBookV2Mock(address(addressBook));
 
         assertTrue(upgraded.verify(user1));
-        assertTrue(upgraded.isRegisteredForPeriod(currentPeriod, user1));
+        assertTrue(upgraded.isRegisteredForAction(currentAction, user1));
         assertEq(upgraded.getWorldIDVerifier(), address(verifier));
+        assertEq(upgraded.getEpochDuration(), EPOCH_DURATION);
         assertEq(upgraded.getRpId(), RP_ID);
         assertEq(upgraded.getCurrentPeriod(), currentPeriod);
         assertEq(upgraded.getCurrentAction(), currentAction);

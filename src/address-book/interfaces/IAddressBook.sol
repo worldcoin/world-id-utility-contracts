@@ -29,14 +29,10 @@ interface IAddressBook {
     //                        ERRORS                          //
     ////////////////////////////////////////////////////////////
 
-    /// @notice Thrown when `periodStartTimestamp` is not the first second of a UTC calendar month.
-    /// @param periodStartTimestamp The invalid start timestamp.
-    error InvalidPeriodStartTimestamp(uint64 periodStartTimestamp);
+    /// @notice Thrown when `epochDuration` is zero.
+    error InvalidEpochDuration();
 
-    /// @notice Thrown when registration/verification is attempted before period 0 start.
-    error PeriodNotStarted();
-
-    /// @notice Thrown when computed period does not fit into `uint32`.
+    /// @notice Thrown when computed period does not fit into `uint64`.
     error PeriodOutOfRange();
 
     /// @notice Thrown when `register` is called with the zero address as `account`.
@@ -55,13 +51,13 @@ interface IAddressBook {
 
     /// @notice Thrown when a nullifier was already consumed for the same period.
     /// @param nullifier The duplicate nullifier.
-    /// @param period The period where the nullifier was already used.
-    error NullifierAlreadyUsed(uint256 nullifier, uint32 period);
+    /// @param action The action where the nullifier was already used.
+    error NullifierAlreadyUsed(uint256 nullifier, uint256 action);
 
     /// @notice Thrown when an address is already registered for the same period.
     /// @param account The duplicate account.
-    /// @param period The period where the account is already registered.
-    error AddressAlreadyRegistered(address account, uint32 period);
+    /// @param action The action where the account is already registered.
+    error AddressAlreadyRegistered(address account, uint256 action);
 
     /// @notice Thrown when a function is called before initialization.
     error ImplementationNotInitialized();
@@ -76,7 +72,7 @@ interface IAddressBook {
     /**
      * @notice Emitted when an address is registered for a period.
      */
-    event AddressRegistered(uint32 indexed period, address indexed account);
+    event AddressRegistered(uint64 indexed period, uint64 epochDuration, address indexed account);
 
     /**
      * @notice Emitted when the WorldID verifier contract is updated.
@@ -87,6 +83,11 @@ interface IAddressBook {
      * @notice Emitted when the issuer schema id is updated.
      */
     event IssuerSchemaIdUpdated(uint64 oldIssuerSchemaId, uint64 newIssuerSchemaId);
+
+    /**
+     * @notice Emitted when the epoch duration is updated.
+     */
+    event EpochDurationUpdated(uint64 oldEpochDuration, uint64 newEpochDuration);
 
     ////////////////////////////////////////////////////////////
     //                   EXTERNAL FUNCTIONS                   //
@@ -110,19 +111,19 @@ interface IAddressBook {
     function verify(address account) external view returns (bool);
 
     /**
-     * @notice Raw lookup for an explicit period.
+     * @notice Raw lookup for an explicit action.
      */
-    function isRegisteredForPeriod(uint32 period, address account) external view returns (bool);
+    function isRegisteredForAction(uint256 action, address account) external view returns (bool);
 
     /**
      * @notice Returns the currently active period index.
      */
-    function getCurrentPeriod() external view returns (uint32);
+    function getCurrentPeriod() external view returns (uint64);
 
     /**
      * @notice Returns the action derived for a specific period.
      */
-    function getActionForPeriod(uint32 period) external view returns (uint256);
+    function getActionForPeriod(uint64 period) external view returns (uint256);
 
     /**
      * @notice Returns the action derived for the current period.
@@ -135,10 +136,9 @@ interface IAddressBook {
     function getWorldIDVerifier() external view returns (address);
 
     /**
-     * @notice Returns the configured period start timestamp.
-     * @dev This must be the first second of a UTC calendar month.
+     * @notice Returns the configured epoch duration in seconds.
      */
-    function getPeriodStartTimestamp() external view returns (uint64);
+    function getEpochDuration() external view returns (uint64);
 
     /**
      * @notice Returns the RP id configured on the contract.
@@ -163,4 +163,9 @@ interface IAddressBook {
      * @notice Updates the issuer schema id used for proof verification.
      */
     function updateIssuerSchemaId(uint64 newIssuerSchemaId) external;
+
+    /**
+     * @notice Updates the epoch duration used for period derivation.
+     */
+    function updateEpochDuration(uint64 newEpochDuration) external;
 }
