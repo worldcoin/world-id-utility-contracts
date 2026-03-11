@@ -102,7 +102,7 @@ contract RecoveryAgent is Initializable, Ownable2StepUpgradeable, UUPSUpgradeabl
     ////////////////////////////////////////////////////////////
 
     /**
-     * @dev Returns whether the signature is authorized for a given hash.
+     * @dev Returns whether the signature is authorized for a given hash. This function will revert if the signature is invalid.
      * @param hash Hash of the data to be signed. This is usually an EIP-712 typed data signature.
      * @param signature Signature byte array associated with `hash`
      * @custom:example Digest hash
