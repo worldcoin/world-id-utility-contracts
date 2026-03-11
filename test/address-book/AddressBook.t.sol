@@ -73,6 +73,7 @@ contract MockWorldIDVerifier {
 
 contract AddressBookTest is Test {
     uint64 internal constant RP_ID = 42;
+    uint64 internal constant ISSUER_SCHEMA_ID = 8;
     uint64 internal constant PERIOD_START_TIMESTAMP = 1_735_689_600; // 2025-01-01 00:00:00 UTC
     uint256 internal constant USER1_PRIVATE_KEY = 0xA11CE;
     uint256 internal constant USER2_PRIVATE_KEY = 0xB0B;
@@ -92,8 +93,9 @@ contract AddressBookTest is Test {
         verifier = new MockWorldIDVerifier();
         AddressBook implementation = new AddressBook();
 
-        bytes memory initData =
-            abi.encodeWithSelector(AddressBook.initialize.selector, address(verifier), RP_ID, uint64(block.timestamp));
+        bytes memory initData = abi.encodeWithSelector(
+            AddressBook.initialize.selector, address(verifier), RP_ID, ISSUER_SCHEMA_ID, uint64(block.timestamp)
+        );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         addressBook = AddressBook(address(proxy));
@@ -108,12 +110,7 @@ contract AddressBookTest is Test {
         zkProof[4] = 5;
 
         return IAddressBook.RegistrationProof({
-            nullifier: nullifier,
-            nonce: 77,
-            expiresAtMin: type(uint64).max,
-            issuerSchemaId: 8,
-            credentialGenesisIssuedAtMin: 0,
-            zeroKnowledgeProof: zkProof
+            nullifier: nullifier, nonce: 77, expiresAtMin: type(uint64).max, zeroKnowledgeProof: zkProof
         });
     }
 
@@ -125,13 +122,17 @@ contract AddressBookTest is Test {
     }
 
     function _expectedAction(uint32 period) internal view returns (uint256) {
-        return uint256(keccak256(abi.encodePacked("WORLD_ID_ADDRESS_BOOK_ACTION", address(addressBook), period))) >> 8;
+        return uint256(keccak256(abi.encodePacked(address(addressBook), period))) >> 8;
+    }
+
+    function _expectedSignalHash(address account) internal pure returns (uint256) {
+        return uint256(keccak256(abi.encodePacked(account))) >> 8;
     }
 
     function _expectVerifierInputsForPeriod(uint32 period, address account) internal {
         verifier.setExpectedRpId(RP_ID);
         verifier.setExpectedAction(addressBook.getActionForPeriod(period));
-        verifier.setExpectedSignalHash(addressBook.computeSignalHash(account));
+        verifier.setExpectedSignalHash(_expectedSignalHash(account));
     }
 
     function testInitializeAndGetters() public view {
@@ -139,6 +140,7 @@ contract AddressBookTest is Test {
 
         assertEq(addressBook.getWorldIDVerifier(), address(verifier));
         assertEq(addressBook.getRpId(), RP_ID);
+        assertEq(addressBook.getIssuerSchemaId(), ISSUER_SCHEMA_ID);
         assertEq(addressBook.getPeriodStartTimestamp(), PERIOD_START_TIMESTAMP);
         assertEq(currentPeriod, 0);
         assertEq(addressBook.getCurrentAction(), addressBook.getActionForPeriod(currentPeriod));
@@ -149,10 +151,22 @@ contract AddressBookTest is Test {
         AddressBook implementation = new AddressBook();
 
         bytes memory initData = abi.encodeWithSelector(
-            AddressBook.initialize.selector, address(localVerifier), uint64(0), PERIOD_START_TIMESTAMP
+            AddressBook.initialize.selector, address(localVerifier), uint64(0), ISSUER_SCHEMA_ID, PERIOD_START_TIMESTAMP
         );
 
         vm.expectRevert(abi.encodeWithSelector(IAddressBook.InvalidRpId.selector));
+        new ERC1967Proxy(address(implementation), initData);
+    }
+
+    function testInitializeRevertsWhenIssuerSchemaIdIsZero() public {
+        MockWorldIDVerifier localVerifier = new MockWorldIDVerifier();
+        AddressBook implementation = new AddressBook();
+
+        bytes memory initData = abi.encodeWithSelector(
+            AddressBook.initialize.selector, address(localVerifier), RP_ID, uint64(0), PERIOD_START_TIMESTAMP
+        );
+
+        vm.expectRevert(abi.encodeWithSelector(IAddressBook.InvalidIssuerSchemaId.selector));
         new ERC1967Proxy(address(implementation), initData);
     }
 
@@ -162,7 +176,11 @@ contract AddressBookTest is Test {
 
         uint64 invalidPeriodStartTimestamp = PERIOD_START_TIMESTAMP + 1;
         bytes memory initData = abi.encodeWithSelector(
-            AddressBook.initialize.selector, address(localVerifier), RP_ID, invalidPeriodStartTimestamp
+            AddressBook.initialize.selector,
+            address(localVerifier),
+            RP_ID,
+            ISSUER_SCHEMA_ID,
+            invalidPeriodStartTimestamp
         );
 
         vm.expectRevert(
@@ -185,12 +203,6 @@ contract AddressBookTest is Test {
 
         _warpToNextPeriod();
         assertEq(addressBook.getCurrentAction(), nextAction);
-    }
-
-    function testComputeSignalHashMatchesSignalBytesHash() public view {
-        string memory signal = addressBook.computeSignal(user1);
-        uint256 expected = uint256(keccak256(bytes(signal))) >> 8;
-        assertEq(addressBook.computeSignalHash(user1), expected);
     }
 
     function testRegisterAndVerifyCurrentPeriod() public {
@@ -237,8 +249,9 @@ contract AddressBookTest is Test {
         MockWorldIDVerifier localVerifier = new MockWorldIDVerifier();
         AddressBook implementation = new AddressBook();
 
-        bytes memory initData =
-            abi.encodeWithSelector(AddressBook.initialize.selector, address(localVerifier), RP_ID, uint64(0));
+        bytes memory initData = abi.encodeWithSelector(
+            AddressBook.initialize.selector, address(localVerifier), RP_ID, ISSUER_SCHEMA_ID, uint64(0)
+        );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         AddressBook localAddressBook = AddressBook(address(proxy));
@@ -316,7 +329,7 @@ contract AddressBookTest is Test {
 
         verifier.setExpectedRpId(RP_ID);
         verifier.setExpectedAction(addressBook.getActionForPeriod(period));
-        verifier.setExpectedSignalHash(addressBook.computeSignalHash(user2));
+        verifier.setExpectedSignalHash(_expectedSignalHash(user2));
 
         vm.expectRevert(abi.encodeWithSelector(MockWorldIDVerifier.SignalHashMismatch.selector));
         vm.prank(user1);
@@ -328,7 +341,7 @@ contract AddressBookTest is Test {
 
         verifier.setExpectedRpId(RP_ID);
         verifier.setExpectedAction(addressBook.getActionForPeriod(period));
-        verifier.setExpectedSignalHash(addressBook.computeSignalHash(user1));
+        verifier.setExpectedSignalHash(_expectedSignalHash(user1));
 
         vm.expectRevert(abi.encodeWithSelector(MockWorldIDVerifier.SignalHashMismatch.selector));
         vm.prank(user2);
@@ -366,5 +379,31 @@ contract AddressBookTest is Test {
 
         addressBook.updateWorldIDVerifier(address(newVerifier));
         assertEq(addressBook.getWorldIDVerifier(), address(newVerifier));
+    }
+
+    function testUpdateIssuerSchemaId() public {
+        uint64 newSchemaId = 99;
+
+        addressBook.updateIssuerSchemaId(newSchemaId);
+        assertEq(addressBook.getIssuerSchemaId(), newSchemaId);
+    }
+
+    function testUpdateIssuerSchemaIdRevertsWhenZero() public {
+        vm.expectRevert(abi.encodeWithSelector(IAddressBook.InvalidIssuerSchemaId.selector));
+        addressBook.updateIssuerSchemaId(0);
+    }
+
+    function testUpdateIssuerSchemaIdRevertsForNonOwner() public {
+        vm.prank(address(0xBEEF));
+        vm.expectRevert();
+        addressBook.updateIssuerSchemaId(99);
+    }
+
+    function testUpdateIssuerSchemaIdEmitsEvent() public {
+        uint64 newSchemaId = 99;
+
+        vm.expectEmit();
+        emit IAddressBook.IssuerSchemaIdUpdated(ISSUER_SCHEMA_ID, newSchemaId);
+        addressBook.updateIssuerSchemaId(newSchemaId);
     }
 }
