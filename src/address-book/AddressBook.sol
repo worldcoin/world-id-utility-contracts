@@ -6,7 +6,6 @@ import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/acces
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {IAddressBook} from "./interfaces/IAddressBook.sol";
 import {IWorldIDVerifier} from "./interfaces/IWorldIDVerifier.sol";
-import {DateTimeLib} from "./libraries/DateTimeLib.sol";
 import {ByteHasher} from "./libraries/ByteHasher.sol";
 
 contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IAddressBook {
@@ -22,14 +21,14 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     /// @dev World ID verifier used by register() to validate proofs.
     IWorldIDVerifier internal _worldIDVerifier;
 
-    /// @dev First second of the UTC calendar month used as period 0 start.
-    uint64 internal _periodStartTimestamp;
+    /// @dev Epoch duration in seconds used to derive the current period.
+    uint64 internal _epochDuration;
 
-    /// @dev period => account => registered.
-    mapping(uint32 => mapping(address => bool)) internal _periodAddressRegistered;
+    /// @dev action => account => registered.
+    mapping(uint256 => mapping(address => bool)) internal _actionAddressRegistered;
 
-    /// @dev period => nullifier => used.
-    mapping(uint32 => mapping(uint256 => bool)) internal _periodNullifierUsed;
+    /// @dev action => nullifier => used.
+    mapping(uint256 => mapping(uint256 => bool)) internal _actionNullifierUsed;
 
     /// @dev RP id used for all verifier calls made by this address book.
     uint64 internal _rpId;
@@ -72,9 +71,9 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
      * @param worldIDVerifier Address of WorldIDVerifier.
      * @param rpId Relying-party identifier bound to this address book.
      * @param issuerSchemaId The expected issuer schema id for proof verification.
-     * @param periodStartTimestamp First second of UTC month used for period 0.
+     * @param epochDuration Duration of each period in seconds.
      */
-    function initialize(address worldIDVerifier, uint64 rpId, uint64 issuerSchemaId, uint64 periodStartTimestamp)
+    function initialize(address worldIDVerifier, uint64 rpId, uint64 issuerSchemaId, uint64 epochDuration)
         public
         virtual
         initializer
@@ -82,9 +81,7 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         if (worldIDVerifier == address(0)) revert ZeroAddress();
         if (rpId == 0) revert InvalidRpId();
         if (issuerSchemaId == 0) revert InvalidIssuerSchemaId();
-        if (!DateTimeLib.isUtcMonthStart(periodStartTimestamp)) {
-            revert InvalidPeriodStartTimestamp(periodStartTimestamp);
-        }
+        if (epochDuration == 0) revert InvalidEpochDuration();
 
         __Ownable_init(msg.sender);
         __Ownable2Step_init();
@@ -92,7 +89,7 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         _worldIDVerifier = IWorldIDVerifier(worldIDVerifier);
         _rpId = rpId;
         _issuerSchemaId = issuerSchemaId;
-        _periodStartTimestamp = periodStartTimestamp;
+        _epochDuration = epochDuration;
     }
 
     ////////////////////////////////////////////////////////////
@@ -114,19 +111,19 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     {
         if (account == address(0)) revert InvalidAccount();
 
-        uint32 currentPeriod = _getCurrentPeriod();
-        if (currentPeriod == type(uint32).max) revert PeriodOutOfRange();
+        uint64 currentPeriod = _getCurrentPeriod();
+        if (currentPeriod == type(uint64).max) revert PeriodOutOfRange();
 
         _register(account, currentPeriod + 1, proof);
     }
 
     /// @inheritdoc IAddressBook
     function verify(address account) external view virtual onlyProxy onlyInitialized returns (bool) {
-        return _periodAddressRegistered[_getCurrentPeriod()][account];
+        return _actionAddressRegistered[_getCurrentAction()][account];
     }
 
     /// @inheritdoc IAddressBook
-    function isRegisteredForPeriod(uint32 period, address account)
+    function isRegisteredForAction(uint256 action, address account)
         external
         view
         virtual
@@ -134,22 +131,22 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         onlyInitialized
         returns (bool)
     {
-        return _periodAddressRegistered[period][account];
+        return _actionAddressRegistered[action][account];
     }
 
     /// @inheritdoc IAddressBook
-    function getCurrentPeriod() external view virtual onlyProxy onlyInitialized returns (uint32) {
+    function getCurrentPeriod() external view virtual onlyProxy onlyInitialized returns (uint64) {
         return _getCurrentPeriod();
     }
 
     /// @inheritdoc IAddressBook
-    function getActionForPeriod(uint32 period) external view virtual onlyProxy onlyInitialized returns (uint256) {
+    function getActionForPeriod(uint64 period) external view virtual onlyProxy onlyInitialized returns (uint256) {
         return _getActionForPeriod(period);
     }
 
     /// @inheritdoc IAddressBook
     function getCurrentAction() external view virtual onlyProxy onlyInitialized returns (uint256) {
-        return _getActionForPeriod(_getCurrentPeriod());
+        return _getCurrentAction();
     }
 
     /// @inheritdoc IAddressBook
@@ -158,8 +155,8 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IAddressBook
-    function getPeriodStartTimestamp() external view virtual onlyProxy onlyInitialized returns (uint64) {
-        return _periodStartTimestamp;
+    function getEpochDuration() external view virtual onlyProxy onlyInitialized returns (uint64) {
+        return _epochDuration;
     }
 
     /// @inheritdoc IAddressBook
@@ -182,21 +179,22 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
      * @param targetPeriod The target period index for registration.
      * @param proof The World ID proof payload to verify.
      */
-    function _register(address account, uint32 targetPeriod, RegistrationProof calldata proof) internal virtual {
-        if (_periodNullifierUsed[targetPeriod][proof.nullifier]) {
-            revert NullifierAlreadyUsed(proof.nullifier, targetPeriod);
+    function _register(address account, uint64 targetPeriod, RegistrationProof calldata proof) internal virtual {
+        uint256 action = _getActionForPeriod(targetPeriod);
+
+        if (_actionNullifierUsed[action][proof.nullifier]) {
+            revert NullifierAlreadyUsed(proof.nullifier, action);
         }
 
-        if (_periodAddressRegistered[targetPeriod][account]) {
-            revert AddressAlreadyRegistered(account, targetPeriod);
+        if (_actionAddressRegistered[action][account]) {
+            revert AddressAlreadyRegistered(account, action);
         }
 
-        uint256 periodEnd = DateTimeLib.periodEndTimestamp(_periodStartTimestamp, targetPeriod);
+        uint256 periodEnd = _getPeriodEndTimestamp(targetPeriod);
         if (uint256(proof.expiresAtMin) < periodEnd) {
             revert ExpirationBeforePeriodEnd(proof.expiresAtMin, periodEnd);
         }
 
-        uint256 action = _getActionForPeriod(targetPeriod);
         uint256 signalHash = _computeSignalHash(account);
 
         _worldIDVerifier.verify(
@@ -211,35 +209,46 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
             proof.zeroKnowledgeProof
         );
 
-        _periodNullifierUsed[targetPeriod][proof.nullifier] = true;
-        _periodAddressRegistered[targetPeriod][account] = true;
+        _actionNullifierUsed[action][proof.nullifier] = true;
+        _actionAddressRegistered[action][account] = true;
 
-        emit AddressRegistered(targetPeriod, account);
+        emit AddressRegistered(targetPeriod, _epochDuration, account);
     }
 
     /**
-     * @notice Returns the current period index based on UTC calendar months.
-     * @dev Period `0` starts at `_periodStartTimestamp`; each period is one UTC month.
+     * @notice Returns the current period index based on fixed-duration epochs.
      * @return The current period index.
      */
-    function _getCurrentPeriod() internal view virtual returns (uint32) {
-        if (block.timestamp < _periodStartTimestamp) revert PeriodNotStarted();
+    function _getCurrentPeriod() internal view virtual returns (uint64) {
+        uint256 period = block.timestamp / _epochDuration;
+        if (period > type(uint64).max) revert PeriodOutOfRange();
 
-        (uint256 baseYear, uint256 baseMonth) = DateTimeLib.timestampToYearMonth(_periodStartTimestamp);
-        (uint256 currentYear, uint256 currentMonth) = DateTimeLib.timestampToYearMonth(block.timestamp);
+        return uint64(period);
+    }
 
-        uint256 period = DateTimeLib.monthIndex(currentYear, currentMonth) - DateTimeLib.monthIndex(baseYear, baseMonth);
-        if (period > type(uint32).max) revert PeriodOutOfRange();
-
-        return uint32(period);
+    /**
+     * @notice Returns the exclusive end timestamp of a target period.
+     * @param period The target period index.
+     * @return The period end boundary in seconds since the Unix epoch.
+     */
+    function _getPeriodEndTimestamp(uint64 period) internal view virtual returns (uint256) {
+        return (uint256(period) + 1) * _epochDuration;
     }
 
     /**
      * @notice Computes the action for a period as a field element.
-     * @dev Hashes `abi.encodePacked(address(this), period)` and reduces via `>> 8` to fit the field.
+     * @dev Hashes `abi.encodePacked(uint256(period), _epochDuration)` and reduces via `>> 8` to fit the field.
      */
-    function _getActionForPeriod(uint32 period) internal view virtual returns (uint256) {
-        return abi.encodePacked(address(this), period).hashToField();
+    function _getActionForPeriod(uint64 period) internal view virtual returns (uint256) {
+        return abi.encodePacked(uint256(period), _epochDuration).hashToField();
+    }
+
+    /**
+     * @notice Computes the action for the current period as a field element.
+     * @return The current action.
+     */
+    function _getCurrentAction() internal view virtual returns (uint256) {
+        return _getActionForPeriod(_getCurrentPeriod());
     }
 
     /**
@@ -273,6 +282,16 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         _issuerSchemaId = newIssuerSchemaId;
 
         emit IssuerSchemaIdUpdated(oldIssuerSchemaId, newIssuerSchemaId);
+    }
+
+    /// @inheritdoc IAddressBook
+    function updateEpochDuration(uint64 newEpochDuration) external virtual onlyOwner onlyProxy onlyInitialized {
+        if (newEpochDuration == 0) revert InvalidEpochDuration();
+
+        uint64 oldEpochDuration = _epochDuration;
+        _epochDuration = newEpochDuration;
+
+        emit EpochDurationUpdated(oldEpochDuration, newEpochDuration);
     }
 
     /// @inheritdoc UUPSUpgradeable

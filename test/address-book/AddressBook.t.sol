@@ -6,7 +6,6 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 
 import {AddressBook} from "../../src/address-book/AddressBook.sol";
 import {IAddressBook} from "../../src/address-book/interfaces/IAddressBook.sol";
-import {DateTimeLib} from "../../src/address-book/libraries/DateTimeLib.sol";
 
 contract MockWorldIDVerifier {
     error ProofInvalid();
@@ -74,7 +73,10 @@ contract MockWorldIDVerifier {
 contract AddressBookTest is Test {
     uint64 internal constant RP_ID = 42;
     uint64 internal constant ISSUER_SCHEMA_ID = 8;
-    uint64 internal constant PERIOD_START_TIMESTAMP = 1_735_689_600; // 2025-01-01 00:00:00 UTC
+    uint64 internal constant EPOCH_DURATION = 30 days;
+    uint64 internal constant UPDATED_EPOCH_DURATION = 7 days;
+    uint64 internal constant INITIAL_PERIOD = 1_234;
+    uint64 internal constant INITIAL_TIMESTAMP = INITIAL_PERIOD * EPOCH_DURATION;
     uint256 internal constant USER1_PRIVATE_KEY = 0xA11CE;
     uint256 internal constant USER2_PRIVATE_KEY = 0xB0B;
 
@@ -85,7 +87,7 @@ contract AddressBookTest is Test {
     address internal user2;
 
     function setUp() public {
-        vm.warp(PERIOD_START_TIMESTAMP);
+        vm.warp(INITIAL_TIMESTAMP);
 
         user1 = vm.addr(USER1_PRIVATE_KEY);
         user2 = vm.addr(USER2_PRIVATE_KEY);
@@ -94,7 +96,7 @@ contract AddressBookTest is Test {
         AddressBook implementation = new AddressBook();
 
         bytes memory initData = abi.encodeWithSelector(
-            AddressBook.initialize.selector, address(verifier), RP_ID, ISSUER_SCHEMA_ID, uint64(block.timestamp)
+            AddressBook.initialize.selector, address(verifier), RP_ID, ISSUER_SCHEMA_ID, EPOCH_DURATION
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
@@ -115,34 +117,37 @@ contract AddressBookTest is Test {
     }
 
     function _warpToNextPeriod() internal {
-        uint32 period = addressBook.getCurrentPeriod();
-        while (addressBook.getCurrentPeriod() == period) {
-            vm.warp(block.timestamp + 1 days);
-        }
+        uint64 period = addressBook.getCurrentPeriod();
+        uint256 nextPeriodStart = (uint256(period) + 1) * addressBook.getEpochDuration();
+        vm.warp(nextPeriodStart);
     }
 
-    function _expectedAction(uint32 period) internal view returns (uint256) {
-        return uint256(keccak256(abi.encodePacked(address(addressBook), period))) >> 8;
+    function _periodEndTimestamp(uint64 period, uint64 epochDuration) internal pure returns (uint256) {
+        return (uint256(period) + 1) * epochDuration;
+    }
+
+    function _expectedAction(uint64 period, uint64 epochDuration) internal pure returns (uint256) {
+        return uint256(keccak256(abi.encodePacked(uint256(period), epochDuration))) >> 8;
     }
 
     function _expectedSignalHash(address account) internal pure returns (uint256) {
         return uint256(keccak256(abi.encodePacked(account))) >> 8;
     }
 
-    function _expectVerifierInputsForPeriod(uint32 period, address account) internal {
+    function _expectVerifierInputsForPeriod(uint64 period, address account) internal {
         verifier.setExpectedRpId(RP_ID);
         verifier.setExpectedAction(addressBook.getActionForPeriod(period));
         verifier.setExpectedSignalHash(_expectedSignalHash(account));
     }
 
     function testInitializeAndGetters() public view {
-        uint32 currentPeriod = addressBook.getCurrentPeriod();
+        uint64 currentPeriod = addressBook.getCurrentPeriod();
 
         assertEq(addressBook.getWorldIDVerifier(), address(verifier));
         assertEq(addressBook.getRpId(), RP_ID);
         assertEq(addressBook.getIssuerSchemaId(), ISSUER_SCHEMA_ID);
-        assertEq(addressBook.getPeriodStartTimestamp(), PERIOD_START_TIMESTAMP);
-        assertEq(currentPeriod, 0);
+        assertEq(addressBook.getEpochDuration(), EPOCH_DURATION);
+        assertEq(currentPeriod, INITIAL_PERIOD);
         assertEq(addressBook.getCurrentAction(), addressBook.getActionForPeriod(currentPeriod));
     }
 
@@ -151,7 +156,7 @@ contract AddressBookTest is Test {
         AddressBook implementation = new AddressBook();
 
         bytes memory initData = abi.encodeWithSelector(
-            AddressBook.initialize.selector, address(localVerifier), uint64(0), ISSUER_SCHEMA_ID, PERIOD_START_TIMESTAMP
+            AddressBook.initialize.selector, address(localVerifier), uint64(0), ISSUER_SCHEMA_ID, EPOCH_DURATION
         );
 
         vm.expectRevert(abi.encodeWithSelector(IAddressBook.InvalidRpId.selector));
@@ -163,41 +168,33 @@ contract AddressBookTest is Test {
         AddressBook implementation = new AddressBook();
 
         bytes memory initData = abi.encodeWithSelector(
-            AddressBook.initialize.selector, address(localVerifier), RP_ID, uint64(0), PERIOD_START_TIMESTAMP
+            AddressBook.initialize.selector, address(localVerifier), RP_ID, uint64(0), EPOCH_DURATION
         );
 
         vm.expectRevert(abi.encodeWithSelector(IAddressBook.InvalidIssuerSchemaId.selector));
         new ERC1967Proxy(address(implementation), initData);
     }
 
-    function testInitializeRevertsWhenPeriodStartIsNotUtcMonthStart() public {
+    function testInitializeRevertsWhenEpochDurationIsZero() public {
         MockWorldIDVerifier localVerifier = new MockWorldIDVerifier();
         AddressBook implementation = new AddressBook();
 
-        uint64 invalidPeriodStartTimestamp = PERIOD_START_TIMESTAMP + 1;
-        bytes memory initData = abi.encodeWithSelector(
-            AddressBook.initialize.selector,
-            address(localVerifier),
-            RP_ID,
-            ISSUER_SCHEMA_ID,
-            invalidPeriodStartTimestamp
-        );
+        bytes memory initData =
+            abi.encodeWithSelector(AddressBook.initialize.selector, address(localVerifier), RP_ID, ISSUER_SCHEMA_ID, 0);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(IAddressBook.InvalidPeriodStartTimestamp.selector, invalidPeriodStartTimestamp)
-        );
+        vm.expectRevert(abi.encodeWithSelector(IAddressBook.InvalidEpochDuration.selector));
         new ERC1967Proxy(address(implementation), initData);
     }
 
     function testGetActionForPeriodMatchesDerivation() public {
-        uint32 currentPeriod = addressBook.getCurrentPeriod();
-        uint32 nextPeriod = currentPeriod + 1;
+        uint64 currentPeriod = addressBook.getCurrentPeriod();
+        uint64 nextPeriod = currentPeriod + 1;
 
         uint256 currentAction = addressBook.getActionForPeriod(currentPeriod);
         uint256 nextAction = addressBook.getActionForPeriod(nextPeriod);
 
-        assertEq(currentAction, _expectedAction(currentPeriod));
-        assertEq(nextAction, _expectedAction(nextPeriod));
+        assertEq(currentAction, _expectedAction(currentPeriod, EPOCH_DURATION));
+        assertEq(nextAction, _expectedAction(nextPeriod, EPOCH_DURATION));
         assertEq(addressBook.getCurrentAction(), currentAction);
         assertTrue(currentAction != nextAction);
 
@@ -206,18 +203,20 @@ contract AddressBookTest is Test {
     }
 
     function testRegisterAndVerifyCurrentPeriod() public {
-        uint32 period = addressBook.getCurrentPeriod();
+        uint64 period = addressBook.getCurrentPeriod();
+        uint256 action = addressBook.getActionForPeriod(period);
 
         _expectVerifierInputsForPeriod(period, user1);
         vm.prank(user1);
         addressBook.register(user1, _proof(111));
 
         assertTrue(addressBook.verify(user1));
-        assertTrue(addressBook.isRegisteredForPeriod(period, user1));
+        assertTrue(addressBook.isRegisteredForAction(action, user1));
     }
 
     function testVerifyIsPeriodScopedAfterPeriodRollover() public {
-        uint32 period = addressBook.getCurrentPeriod();
+        uint64 period = addressBook.getCurrentPeriod();
+        uint256 action = addressBook.getActionForPeriod(period);
 
         _expectVerifierInputsForPeriod(period, user1);
         vm.prank(user1);
@@ -226,19 +225,20 @@ contract AddressBookTest is Test {
         _warpToNextPeriod();
 
         assertFalse(addressBook.verify(user1));
-        assertTrue(addressBook.isRegisteredForPeriod(period, user1));
+        assertTrue(addressBook.isRegisteredForAction(action, user1));
     }
 
     function testRegisterNextPeriod() public {
-        uint32 currentPeriod = addressBook.getCurrentPeriod();
-        uint32 nextPeriod = currentPeriod + 1;
+        uint64 currentPeriod = addressBook.getCurrentPeriod();
+        uint64 nextPeriod = currentPeriod + 1;
+        uint256 nextAction = addressBook.getActionForPeriod(nextPeriod);
 
         _expectVerifierInputsForPeriod(nextPeriod, user1);
         vm.prank(user1);
         addressBook.registerNextPeriod(user1, _proof(222));
 
         assertFalse(addressBook.verify(user1));
-        assertTrue(addressBook.isRegisteredForPeriod(nextPeriod, user1));
+        assertTrue(addressBook.isRegisteredForAction(nextAction, user1));
 
         _warpToNextPeriod();
 
@@ -249,15 +249,14 @@ contract AddressBookTest is Test {
         MockWorldIDVerifier localVerifier = new MockWorldIDVerifier();
         AddressBook implementation = new AddressBook();
 
-        bytes memory initData = abi.encodeWithSelector(
-            AddressBook.initialize.selector, address(localVerifier), RP_ID, ISSUER_SCHEMA_ID, uint64(0)
-        );
+        bytes memory initData =
+            abi.encodeWithSelector(AddressBook.initialize.selector, address(localVerifier), RP_ID, ISSUER_SCHEMA_ID, 1);
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         AddressBook localAddressBook = AddressBook(address(proxy));
 
-        vm.warp(DateTimeLib.periodEndTimestamp(0, type(uint32).max - 1));
-        assertEq(localAddressBook.getCurrentPeriod(), type(uint32).max);
+        vm.warp(type(uint64).max);
+        assertEq(localAddressBook.getCurrentPeriod(), type(uint64).max);
 
         vm.expectRevert(abi.encodeWithSelector(IAddressBook.PeriodOutOfRange.selector));
         vm.prank(user1);
@@ -265,11 +264,11 @@ contract AddressBookTest is Test {
     }
 
     function testRegisterRevertsWhenExpiresBeforeCurrentPeriodEnd() public {
-        uint32 currentPeriod = addressBook.getCurrentPeriod();
-        uint256 periodEnd = DateTimeLib.periodEndTimestamp(addressBook.getPeriodStartTimestamp(), currentPeriod);
+        uint64 currentPeriod = addressBook.getCurrentPeriod();
+        uint256 periodEnd = _periodEndTimestamp(currentPeriod, addressBook.getEpochDuration());
 
         IAddressBook.RegistrationProof memory proof = _proof(445);
-        proof.expiresAtMin = uint64(addressBook.getPeriodStartTimestamp());
+        proof.expiresAtMin = uint64(periodEnd - 1);
 
         vm.expectRevert(
             abi.encodeWithSelector(IAddressBook.ExpirationBeforePeriodEnd.selector, proof.expiresAtMin, periodEnd)
@@ -279,12 +278,11 @@ contract AddressBookTest is Test {
     }
 
     function testRegisterNextPeriodRevertsWhenExpiresBeforeNextPeriodEnd() public {
-        uint32 nextPeriod = addressBook.getCurrentPeriod() + 1;
-        uint256 periodEnd = DateTimeLib.periodEndTimestamp(addressBook.getPeriodStartTimestamp(), nextPeriod);
+        uint64 nextPeriod = addressBook.getCurrentPeriod() + 1;
+        uint256 periodEnd = _periodEndTimestamp(nextPeriod, addressBook.getEpochDuration());
 
         IAddressBook.RegistrationProof memory proof = _proof(446);
-        proof.expiresAtMin =
-            uint64(DateTimeLib.periodEndTimestamp(addressBook.getPeriodStartTimestamp(), nextPeriod - 1));
+        proof.expiresAtMin = uint64(_periodEndTimestamp(nextPeriod - 1, addressBook.getEpochDuration()));
 
         vm.expectRevert(
             abi.encodeWithSelector(IAddressBook.ExpirationBeforePeriodEnd.selector, proof.expiresAtMin, periodEnd)
@@ -294,7 +292,8 @@ contract AddressBookTest is Test {
     }
 
     function testCannotReuseNullifierInSamePeriod() public {
-        uint32 period = addressBook.getCurrentPeriod();
+        uint64 period = addressBook.getCurrentPeriod();
+        uint256 action = addressBook.getActionForPeriod(period);
 
         _expectVerifierInputsForPeriod(period, user1);
         vm.prank(user1);
@@ -302,19 +301,20 @@ contract AddressBookTest is Test {
 
         _expectVerifierInputsForPeriod(period, user2);
 
-        vm.expectRevert(abi.encodeWithSelector(IAddressBook.NullifierAlreadyUsed.selector, 555, period));
+        vm.expectRevert(abi.encodeWithSelector(IAddressBook.NullifierAlreadyUsed.selector, 555, action));
         vm.prank(user2);
         addressBook.register(user2, _proof(555));
     }
 
     function testCannotReuseAddressInSamePeriod() public {
-        uint32 period = addressBook.getCurrentPeriod();
+        uint64 period = addressBook.getCurrentPeriod();
+        uint256 action = addressBook.getActionForPeriod(period);
 
         _expectVerifierInputsForPeriod(period, user1);
         vm.prank(user1);
         addressBook.register(user1, _proof(666));
 
-        vm.expectRevert(abi.encodeWithSelector(IAddressBook.AddressAlreadyRegistered.selector, user1, period));
+        vm.expectRevert(abi.encodeWithSelector(IAddressBook.AddressAlreadyRegistered.selector, user1, action));
         vm.prank(user1);
         addressBook.register(user1, _proof(667));
     }
@@ -325,7 +325,7 @@ contract AddressBookTest is Test {
     }
 
     function testSignalHashBindingIsEnforced() public {
-        uint32 period = addressBook.getCurrentPeriod();
+        uint64 period = addressBook.getCurrentPeriod();
 
         verifier.setExpectedRpId(RP_ID);
         verifier.setExpectedAction(addressBook.getActionForPeriod(period));
@@ -337,7 +337,7 @@ contract AddressBookTest is Test {
     }
 
     function testCannotRegisterDifferentAccountWithProofBoundToAnother() public {
-        uint32 period = addressBook.getCurrentPeriod();
+        uint64 period = addressBook.getCurrentPeriod();
 
         verifier.setExpectedRpId(RP_ID);
         verifier.setExpectedAction(addressBook.getActionForPeriod(period));
@@ -349,7 +349,7 @@ contract AddressBookTest is Test {
     }
 
     function testThirdPartyCanRegisterAnotherAccount() public {
-        uint32 period = addressBook.getCurrentPeriod();
+        uint64 period = addressBook.getCurrentPeriod();
 
         _expectVerifierInputsForPeriod(period, user2);
 
@@ -359,7 +359,7 @@ contract AddressBookTest is Test {
     }
 
     function testVerifierRevertBubblesUp() public {
-        uint32 period = addressBook.getCurrentPeriod();
+        uint64 period = addressBook.getCurrentPeriod();
 
         _expectVerifierInputsForPeriod(period, user1);
         verifier.setShouldRevert(true);
@@ -405,5 +405,53 @@ contract AddressBookTest is Test {
         vm.expectEmit();
         emit IAddressBook.IssuerSchemaIdUpdated(ISSUER_SCHEMA_ID, newSchemaId);
         addressBook.updateIssuerSchemaId(newSchemaId);
+    }
+
+    function testUpdateEpochDuration() public {
+        addressBook.updateEpochDuration(UPDATED_EPOCH_DURATION);
+        assertEq(addressBook.getEpochDuration(), UPDATED_EPOCH_DURATION);
+    }
+
+    function testUpdateEpochDurationRevertsWhenZero() public {
+        vm.expectRevert(abi.encodeWithSelector(IAddressBook.InvalidEpochDuration.selector));
+        addressBook.updateEpochDuration(0);
+    }
+
+    function testUpdateEpochDurationRevertsForNonOwner() public {
+        vm.prank(address(0xBEEF));
+        vm.expectRevert();
+        addressBook.updateEpochDuration(UPDATED_EPOCH_DURATION);
+    }
+
+    function testUpdateEpochDurationEmitsEvent() public {
+        vm.expectEmit();
+        emit IAddressBook.EpochDurationUpdated(EPOCH_DURATION, UPDATED_EPOCH_DURATION);
+        addressBook.updateEpochDuration(UPDATED_EPOCH_DURATION);
+    }
+
+    function testUpdateEpochDurationChangesCurrentActionAndVerificationScope() public {
+        uint64 currentPeriod = addressBook.getCurrentPeriod();
+
+        _expectVerifierInputsForPeriod(currentPeriod, user1);
+        vm.prank(user1);
+        addressBook.register(user1, _proof(1_001));
+
+        assertTrue(addressBook.verify(user1));
+
+        addressBook.updateEpochDuration(UPDATED_EPOCH_DURATION);
+
+        uint64 updatedPeriod = uint64(block.timestamp / UPDATED_EPOCH_DURATION);
+        uint256 updatedAction = _expectedAction(updatedPeriod, UPDATED_EPOCH_DURATION);
+
+        assertEq(addressBook.getCurrentPeriod(), updatedPeriod);
+        assertEq(addressBook.getCurrentAction(), updatedAction);
+        assertFalse(addressBook.verify(user1));
+
+        _expectVerifierInputsForPeriod(updatedPeriod, user1);
+        vm.prank(user1);
+        addressBook.register(user1, _proof(1_002));
+
+        assertTrue(addressBook.verify(user1));
+        assertTrue(addressBook.isRegisteredForAction(updatedAction, user1));
     }
 }
