@@ -1,0 +1,10 @@
+{
+  "chainId": 480,
+  "commitSha": "5f72f152410857dfe95913d022c5c375bd2b0ec3",
+  "deployer": "0xe72f711EAe8296d9C495D7Cd2f5e422f46715eca",
+  "recoveryAgent": {
+    "implementation": "0xB90453ec53cfCd60A2Be474cC18A852fEC644423",
+    "proxy": "0x00000000CBBA8Cb46C8CD414B62213F1B334fC59"
+  },
+  "timestamp": 1773347105
+}
