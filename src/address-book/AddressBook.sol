@@ -118,7 +118,7 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IAddressBook
-    function verify(address account) external view virtual onlyProxy onlyInitialized returns (bool) {
+    function isVerified(address account) external view virtual onlyProxy onlyInitialized returns (bool) {
         return _actionAddressRegistered[_getCurrentAction()][account];
     }
 
