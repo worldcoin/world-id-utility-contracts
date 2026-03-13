@@ -202,7 +202,7 @@ contract AddressBookTest is Test {
         assertEq(addressBook.getCurrentAction(), nextAction);
     }
 
-    function testRegisterAndVerifyCurrentPeriod() public {
+    function testRegisterAndIsVerifiedCurrentPeriod() public {
         uint64 period = addressBook.getCurrentPeriod();
         uint256 action = addressBook.getActionForPeriod(period);
 
@@ -210,11 +210,11 @@ contract AddressBookTest is Test {
         vm.prank(user1);
         addressBook.register(user1, _proof(111));
 
-        assertTrue(addressBook.verify(user1));
+        assertTrue(addressBook.isVerified(user1));
         assertTrue(addressBook.isRegisteredForAction(action, user1));
     }
 
-    function testVerifyIsPeriodScopedAfterPeriodRollover() public {
+    function testIsVerifiedIsPeriodScopedAfterPeriodRollover() public {
         uint64 period = addressBook.getCurrentPeriod();
         uint256 action = addressBook.getActionForPeriod(period);
 
@@ -224,7 +224,7 @@ contract AddressBookTest is Test {
 
         _warpToNextPeriod();
 
-        assertFalse(addressBook.verify(user1));
+        assertFalse(addressBook.isVerified(user1));
         assertTrue(addressBook.isRegisteredForAction(action, user1));
     }
 
@@ -237,12 +237,12 @@ contract AddressBookTest is Test {
         vm.prank(user1);
         addressBook.registerNextPeriod(user1, _proof(222));
 
-        assertFalse(addressBook.verify(user1));
+        assertFalse(addressBook.isVerified(user1));
         assertTrue(addressBook.isRegisteredForAction(nextAction, user1));
 
         _warpToNextPeriod();
 
-        assertTrue(addressBook.verify(user1));
+        assertTrue(addressBook.isVerified(user1));
     }
 
     function testRegisterNextPeriodRevertsAtMaxPeriod() public {
@@ -355,7 +355,7 @@ contract AddressBookTest is Test {
 
         vm.prank(user1);
         addressBook.register(user2, _proof(892));
-        assertTrue(addressBook.verify(user2));
+        assertTrue(addressBook.isVerified(user2));
     }
 
     function testVerifierRevertBubblesUp() public {
@@ -436,7 +436,7 @@ contract AddressBookTest is Test {
         vm.prank(user1);
         addressBook.register(user1, _proof(1_001));
 
-        assertTrue(addressBook.verify(user1));
+        assertTrue(addressBook.isVerified(user1));
 
         addressBook.updateEpochDuration(UPDATED_EPOCH_DURATION);
 
@@ -445,13 +445,13 @@ contract AddressBookTest is Test {
 
         assertEq(addressBook.getCurrentPeriod(), updatedPeriod);
         assertEq(addressBook.getCurrentAction(), updatedAction);
-        assertFalse(addressBook.verify(user1));
+        assertFalse(addressBook.isVerified(user1));
 
         _expectVerifierInputsForPeriod(updatedPeriod, user1);
         vm.prank(user1);
         addressBook.register(user1, _proof(1_002));
 
-        assertTrue(addressBook.verify(user1));
+        assertTrue(addressBook.isVerified(user1));
         assertTrue(addressBook.isRegisteredForAction(updatedAction, user1));
     }
 }

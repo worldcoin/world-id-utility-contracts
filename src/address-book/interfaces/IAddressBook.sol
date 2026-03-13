@@ -85,7 +85,8 @@ interface IAddressBook {
     event IssuerSchemaIdUpdated(uint64 oldIssuerSchemaId, uint64 newIssuerSchemaId);
 
     /**
-     * @notice Emitted when the epoch duration is updated.
+     * @notice Emitted when the epoch duration is updated. This also signals
+     *  a trigger on an immediate cache invalidation of all existing verifications.
      */
     event EpochDurationUpdated(uint64 oldEpochDuration, uint64 newEpochDuration);
 
@@ -108,7 +109,7 @@ interface IAddressBook {
     /**
      * @notice Returns whether `account` is registered in the currently active period.
      */
-    function verify(address account) external view returns (bool);
+    function isVerified(address account) external view returns (bool);
 
     /**
      * @notice Raw lookup for an explicit action.

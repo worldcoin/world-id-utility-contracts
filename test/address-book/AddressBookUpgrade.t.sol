@@ -81,7 +81,7 @@ contract AddressBookUpgradeTest is Test {
         vm.prank(user1);
         addressBook.register(user1, _proof(111));
 
-        assertTrue(addressBook.verify(user1));
+        assertTrue(addressBook.isVerified(user1));
         assertTrue(addressBook.isRegisteredForAction(currentAction, user1));
 
         AddressBookV2Mock implementationV2 = new AddressBookV2Mock();
@@ -89,7 +89,7 @@ contract AddressBookUpgradeTest is Test {
 
         AddressBookV2Mock upgraded = AddressBookV2Mock(address(addressBook));
 
-        assertTrue(upgraded.verify(user1));
+        assertTrue(upgraded.isVerified(user1));
         assertTrue(upgraded.isRegisteredForAction(currentAction, user1));
         assertEq(upgraded.getWorldIDVerifier(), address(verifier));
         assertEq(upgraded.getEpochDuration(), EPOCH_DURATION);
