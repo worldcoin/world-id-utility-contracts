@@ -147,7 +147,7 @@ interface IAddressBook {
     function getRpId() external view returns (uint64);
 
     /**
-     * @notice Returns the expected issuerSchemaId expected for proofs submitted to this contract.
+     * @notice Returns the issuerSchemaId expected for proofs submitted to this contract.
      */
     function getIssuerSchemaId() external view returns (uint64);
 

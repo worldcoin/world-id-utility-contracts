@@ -36,6 +36,10 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     /// @dev The expected issuer schema id for the proofs
     uint64 internal _issuerSchemaId;
 
+    // This empty reserved space is put in place to allow future versions to add new
+    // variables without shifting down storage in the inheritance chain.
+    uint256[50] private __gap;
+
     ////////////////////////////////////////////////////////////
     //                        Modifiers                       //
     ////////////////////////////////////////////////////////////
