@@ -506,7 +506,7 @@ contract AddressBookTest is Test {
         addressBook.updateEpochDuration(UPDATED_EPOCH_DURATION);
 
         uint64 updatedPeriod = uint64(block.timestamp / UPDATED_EPOCH_DURATION);
-        uint256 updatedAction = _expectedAction(updatedPeriod, UPDATED_EPOCH_DURATION, 0);
+        uint256 updatedAction = _expectedAction(updatedPeriod, UPDATED_EPOCH_DURATION, 1);
 
         assertEq(addressBook.getCurrentPeriod(), updatedPeriod);
         assertEq(addressBook.getCurrentAction(), updatedAction);
