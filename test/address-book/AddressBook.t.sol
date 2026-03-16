@@ -404,6 +404,62 @@ contract AddressBookTest is Test {
         assertEq(addressBook.getWorldIDVerifier(), address(newVerifier));
     }
 
+    function testUpdateWorldIDVerifierRevertsWhenZero() public {
+        vm.expectRevert(abi.encodeWithSelector(IAddressBook.ZeroAddress.selector));
+        addressBook.updateWorldIDVerifier(address(0));
+    }
+
+    function testUpdateWorldIDVerifierEmitsEvent() public {
+        MockWorldIDVerifier newVerifier = new MockWorldIDVerifier();
+
+        vm.expectEmit();
+        emit IAddressBook.WorldIDVerifierUpdated(address(verifier), address(newVerifier));
+        addressBook.updateWorldIDVerifier(address(newVerifier));
+    }
+
+    function testUpdateWorldIDVerifierChangesCurrentActionAndVerificationScope() public {
+        uint64 currentPeriod = addressBook.getCurrentPeriod();
+
+        _expectVerifierInputsForPeriod(currentPeriod, user1);
+        vm.prank(user1);
+        addressBook.register(user1, _proof(1_006));
+
+        assertTrue(addressBook.isVerified(user1));
+
+        MockWorldIDVerifier newVerifier = new MockWorldIDVerifier();
+        addressBook.updateWorldIDVerifier(address(newVerifier));
+        verifier = newVerifier;
+
+        uint256 updatedAction = _expectedAction(currentPeriod, EPOCH_DURATION, 1);
+
+        assertEq(addressBook.getWorldIDVerifier(), address(newVerifier));
+        assertEq(addressBook.getCurrentAction(), updatedAction);
+        assertFalse(addressBook.isVerified(user1));
+
+        _expectVerifierInputsForPeriod(currentPeriod, user1);
+        vm.prank(user1);
+        addressBook.register(user1, _proof(1_007));
+
+        assertTrue(addressBook.isVerified(user1));
+        assertTrue(addressBook.isRegisteredForAction(updatedAction, user1));
+    }
+
+    function testUpdateWorldIDVerifierInvalidatesNextPeriodRegistration() public {
+        uint64 nextPeriod = addressBook.getCurrentPeriod() + 1;
+
+        _expectVerifierInputsForPeriod(nextPeriod, user1);
+        vm.prank(user1);
+        addressBook.registerNextPeriod(user1, _proof(1_008));
+
+        MockWorldIDVerifier newVerifier = new MockWorldIDVerifier();
+        addressBook.updateWorldIDVerifier(address(newVerifier));
+
+        _warpToNextPeriod();
+
+        assertEq(addressBook.getWorldIDVerifier(), address(newVerifier));
+        assertFalse(addressBook.isVerified(user1));
+    }
+
     function testUpdateIssuerSchemaId() public {
         uint64 newSchemaId = 99;
 

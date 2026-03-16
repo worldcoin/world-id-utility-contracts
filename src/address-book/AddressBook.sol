@@ -266,7 +266,14 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         if (newWorldIDVerifier == address(0)) revert ZeroAddress();
 
         address oldWorldIDVerifier = address(_worldIDVerifier);
+        if (newWorldIDVerifier == oldWorldIDVerifier) {
+            return;
+        }
+
         _worldIDVerifier = IWorldIDVerifier(newWorldIDVerifier);
+        unchecked {
+            ++_registrationVersion;
+        }
 
         emit WorldIDVerifierUpdated(oldWorldIDVerifier, newWorldIDVerifier);
     }

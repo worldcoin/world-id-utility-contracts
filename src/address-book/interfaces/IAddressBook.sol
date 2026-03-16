@@ -76,6 +76,7 @@ interface IAddressBook {
 
     /**
      * @notice Emitted when the WorldID verifier contract is updated.
+     * @dev This rotates the active registration namespace, invalidating previously cached registrations.
      */
     event WorldIDVerifierUpdated(address oldWorldIDVerifier, address newWorldIDVerifier);
 
@@ -158,6 +159,7 @@ interface IAddressBook {
 
     /**
      * @notice Updates the WorldID verifier address.
+     * @dev Existing registrations stop matching the active action namespace after a successful update.
      */
     function updateWorldIDVerifier(address newWorldIDVerifier) external;
 
