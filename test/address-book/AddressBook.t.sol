@@ -306,6 +306,25 @@ contract AddressBookTest is Test {
         addressBook.register(user2, _proof(555));
     }
 
+    function testCannotReuseNullifierAcrossPeriods() public {
+        uint64 period = addressBook.getCurrentPeriod();
+
+        _expectVerifierInputsForPeriod(period, user1);
+        vm.prank(user1);
+        addressBook.register(user1, _proof(556));
+
+        _warpToNextPeriod();
+
+        uint64 nextPeriod = addressBook.getCurrentPeriod();
+        uint256 nextAction = addressBook.getActionForPeriod(nextPeriod);
+
+        _expectVerifierInputsForPeriod(nextPeriod, user2);
+
+        vm.expectRevert(abi.encodeWithSelector(IAddressBook.NullifierAlreadyUsed.selector, 556, nextAction));
+        vm.prank(user2);
+        addressBook.register(user2, _proof(556));
+    }
+
     function testCannotReuseAddressInSamePeriod() public {
         uint64 period = addressBook.getCurrentPeriod();
         uint256 action = addressBook.getActionForPeriod(period);

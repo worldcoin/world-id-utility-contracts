@@ -27,8 +27,8 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     /// @dev action => account => registered.
     mapping(uint256 => mapping(address => bool)) internal _actionAddressRegistered;
 
-    /// @dev action => nullifier => used.
-    mapping(uint256 => mapping(uint256 => bool)) internal _actionNullifierUsed;
+    /// @dev nullifier => used.
+    mapping(uint256 => bool) internal _nullifierUsed;
 
     /// @dev RP id used for all verifier calls made by this address book.
     uint64 internal _rpId;
@@ -181,7 +181,7 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     function _register(address account, uint64 targetPeriod, RegistrationProof calldata proof) internal virtual {
         uint256 action = _getActionForPeriod(targetPeriod);
 
-        if (_actionNullifierUsed[action][proof.nullifier]) {
+        if (_nullifierUsed[proof.nullifier]) {
             revert NullifierAlreadyUsed(proof.nullifier, action);
         }
 
@@ -208,7 +208,7 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
             proof.zeroKnowledgeProof
         );
 
-        _actionNullifierUsed[action][proof.nullifier] = true;
+        _nullifierUsed[proof.nullifier] = true;
         _actionAddressRegistered[action][account] = true;
 
         emit AddressRegistered(targetPeriod, _epochDuration, account);
