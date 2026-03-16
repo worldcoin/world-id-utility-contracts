@@ -36,6 +36,9 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     /// @dev The expected issuer schema id for the proofs
     uint64 internal _issuerSchemaId;
 
+    /// @dev Monotonic version mixed into action derivation to invalidate cached registrations on issuer changes.
+    uint64 internal _registrationVersion;
+
     ////////////////////////////////////////////////////////////
     //                        Modifiers                       //
     ////////////////////////////////////////////////////////////
@@ -230,10 +233,11 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     /**
      * @notice Computes the action for a period as a field element.
-     * @dev Hashes `abi.encodePacked(uint256(period), _epochDuration)` and reduces via `>> 8` to fit the field.
+     * @dev Hashes `abi.encodePacked(uint256(period), _epochDuration, _registrationVersion)` and reduces via `>> 8`
+     * to fit the field.
      */
     function _getActionForPeriod(uint64 period) internal view virtual returns (uint256) {
-        return abi.encodePacked(uint256(period), _epochDuration).hashToField();
+        return abi.encodePacked(uint256(period), _epochDuration, _registrationVersion).hashToField();
     }
 
     /**
@@ -272,7 +276,14 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         if (newIssuerSchemaId == 0) revert InvalidIssuerSchemaId();
 
         uint64 oldIssuerSchemaId = _issuerSchemaId;
+        if (newIssuerSchemaId == oldIssuerSchemaId) {
+            return;
+        }
+
         _issuerSchemaId = newIssuerSchemaId;
+        unchecked {
+            ++_registrationVersion;
+        }
 
         emit IssuerSchemaIdUpdated(oldIssuerSchemaId, newIssuerSchemaId);
     }

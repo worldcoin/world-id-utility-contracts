@@ -81,6 +81,7 @@ interface IAddressBook {
 
     /**
      * @notice Emitted when the issuer schema id is updated.
+     * @dev This rotates the active registration namespace, invalidating previously cached registrations.
      */
     event IssuerSchemaIdUpdated(uint64 oldIssuerSchemaId, uint64 newIssuerSchemaId);
 
@@ -162,6 +163,7 @@ interface IAddressBook {
 
     /**
      * @notice Updates the issuer schema id used for proof verification.
+     * @dev Existing registrations stop matching the active action namespace after a successful update.
      */
     function updateIssuerSchemaId(uint64 newIssuerSchemaId) external;
 
