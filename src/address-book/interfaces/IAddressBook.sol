@@ -49,9 +49,9 @@ interface IAddressBook {
     /// @notice Thrown when the provided issuer schema id is not valid during initialization.
     error InvalidIssuerSchemaId();
 
-    /// @notice Thrown when a nullifier was already consumed for the same period.
+    /// @notice Thrown when a nullifier was already consumed by this address book.
     /// @param nullifier The duplicate nullifier.
-    /// @param action The action where the nullifier was already used.
+    /// @param action The action tied to the duplicate registration attempt.
     error NullifierAlreadyUsed(uint256 nullifier, uint256 action);
 
     /// @notice Thrown when an address is already registered for the same period.
