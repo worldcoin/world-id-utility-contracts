@@ -123,13 +123,7 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IAddressBook
-    function isRegisteredForAction(uint256 action, address account)
-        external
-        view
-        virtual
-        onlyProxy
-        returns (bool)
-    {
+    function isRegisteredForAction(uint256 action, address account) external view virtual onlyProxy returns (bool) {
         return _actionAddressRegistered[action][account];
     }
 
@@ -173,6 +167,7 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     ////////////////////////////////////////////////////////////
 
     /**
+     * q
      * @notice Registers an account for a period after proof verification.
      * @param account The account to mark as registered.
      * @param targetPeriod The target period index for registration.
