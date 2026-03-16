@@ -36,10 +36,6 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     /// @dev The expected issuer schema id for the proofs
     uint64 internal _issuerSchemaId;
 
-    // This empty reserved space is put in place to allow future versions to add new
-    // variables without shifting down storage in the inheritance chain.
-    uint256[50] private __gap;
-
     ////////////////////////////////////////////////////////////
     //                        Modifiers                       //
     ////////////////////////////////////////////////////////////
@@ -122,7 +118,7 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IAddressBook
-    function isVerified(address account) external view virtual onlyProxy onlyInitialized returns (bool) {
+    function isVerified(address account) external view virtual onlyProxy returns (bool) {
         return _actionAddressRegistered[_getCurrentAction()][account];
     }
 
@@ -132,44 +128,43 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         view
         virtual
         onlyProxy
-        onlyInitialized
         returns (bool)
     {
         return _actionAddressRegistered[action][account];
     }
 
     /// @inheritdoc IAddressBook
-    function getCurrentPeriod() external view virtual onlyProxy onlyInitialized returns (uint64) {
+    function getCurrentPeriod() external view virtual onlyProxy returns (uint64) {
         return _getCurrentPeriod();
     }
 
     /// @inheritdoc IAddressBook
-    function getActionForPeriod(uint64 period) external view virtual onlyProxy onlyInitialized returns (uint256) {
+    function getActionForPeriod(uint64 period) external view virtual onlyProxy returns (uint256) {
         return _getActionForPeriod(period);
     }
 
     /// @inheritdoc IAddressBook
-    function getCurrentAction() external view virtual onlyProxy onlyInitialized returns (uint256) {
+    function getCurrentAction() external view virtual onlyProxy returns (uint256) {
         return _getCurrentAction();
     }
 
     /// @inheritdoc IAddressBook
-    function getWorldIDVerifier() external view virtual onlyProxy onlyInitialized returns (address) {
+    function getWorldIDVerifier() external view virtual onlyProxy returns (address) {
         return address(_worldIDVerifier);
     }
 
     /// @inheritdoc IAddressBook
-    function getEpochDuration() external view virtual onlyProxy onlyInitialized returns (uint64) {
+    function getEpochDuration() external view virtual onlyProxy returns (uint64) {
         return _epochDuration;
     }
 
     /// @inheritdoc IAddressBook
-    function getRpId() external view virtual onlyProxy onlyInitialized returns (uint64) {
+    function getRpId() external view virtual onlyProxy returns (uint64) {
         return _rpId;
     }
 
     /// @inheritdoc IAddressBook
-    function getIssuerSchemaId() external view virtual onlyProxy onlyInitialized returns (uint64) {
+    function getIssuerSchemaId() external view virtual onlyProxy returns (uint64) {
         return _issuerSchemaId;
     }
 
