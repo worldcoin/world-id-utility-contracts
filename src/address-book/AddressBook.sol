@@ -293,7 +293,14 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         if (newEpochDuration == 0) revert InvalidEpochDuration();
 
         uint64 oldEpochDuration = _epochDuration;
+        if (newEpochDuration == oldEpochDuration) {
+            return;
+        }
+
         _epochDuration = newEpochDuration;
+        unchecked {
+            ++_registrationVersion;
+        }
 
         emit EpochDurationUpdated(oldEpochDuration, newEpochDuration);
     }
