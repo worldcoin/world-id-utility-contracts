@@ -41,7 +41,7 @@ interface IAddressBook {
     /// @notice Thrown when proof expiry does not cover the full target period.
     /// @param expiresAtMin The expiry bound carried in the proof.
     /// @param periodEnd The required minimum expiry for the target period end.
-    error ExpirationBeforePeriodEnd(uint64 expiresAtMin, uint256 periodEnd);
+    error ExpirationBeforePeriodEnd(uint64 expiresAtMin, uint64 periodEnd);
 
     /// @notice Thrown when an RP id of `0` is provided where a configured RP id is required.
     error InvalidRpId();

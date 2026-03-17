@@ -282,7 +282,7 @@ contract AddressBookTest is Test {
 
     function testRegisterRevertsWhenExpiresBeforeCurrentPeriodEnd() public {
         uint64 currentPeriod = addressBook.getCurrentPeriod();
-        uint256 periodEnd = _periodEndTimestamp(currentPeriod, addressBook.getEpochDuration());
+        uint64 periodEnd = _periodEndTimestamp(currentPeriod, addressBook.getEpochDuration());
 
         IAddressBook.RegistrationProof memory proof = _proof(445);
         proof.expiresAtMin = uint64(periodEnd - 1);
@@ -296,7 +296,7 @@ contract AddressBookTest is Test {
 
     function testRegisterNextPeriodRevertsWhenExpiresBeforeNextPeriodEnd() public {
         uint64 nextPeriod = addressBook.getCurrentPeriod() + 1;
-        uint256 periodEnd = _periodEndTimestamp(nextPeriod, addressBook.getEpochDuration());
+        uint64 periodEnd = _periodEndTimestamp(nextPeriod, addressBook.getEpochDuration());
 
         IAddressBook.RegistrationProof memory proof = _proof(446);
         proof.expiresAtMin = uint64(_periodEndTimestamp(nextPeriod - 1, addressBook.getEpochDuration()));
