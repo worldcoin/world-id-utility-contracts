@@ -122,16 +122,12 @@ contract AddressBookTest is Test {
         vm.warp(nextPeriodStart);
     }
 
-    function _periodEndTimestamp(uint64 period, uint64 epochDuration) internal pure returns (uint256) {
-        return (uint256(period) + 1) * epochDuration;
+    function _periodEndTimestamp(uint64 period, uint64 epochDuration) internal pure returns (uint64) {
+        return uint64((uint256(period) + 1) * epochDuration);
     }
 
-    function _expectedAction(uint64 period, uint64 epochDuration, uint64 registrationVersion)
-        internal
-        pure
-        returns (uint256)
-    {
-        return uint256(keccak256(abi.encodePacked(uint256(period), epochDuration, registrationVersion))) >> 8;
+    function _expectedAction(uint64 period, uint64 registrationVersion) internal pure returns (uint256) {
+        return uint256(keccak256(abi.encodePacked(period, registrationVersion))) >> 8;
     }
 
     function _expectedSignalHash(address account) internal pure returns (uint256) {
@@ -197,8 +193,8 @@ contract AddressBookTest is Test {
         uint256 currentAction = addressBook.getActionForPeriod(currentPeriod);
         uint256 nextAction = addressBook.getActionForPeriod(nextPeriod);
 
-        assertEq(currentAction, _expectedAction(currentPeriod, EPOCH_DURATION, 0));
-        assertEq(nextAction, _expectedAction(nextPeriod, EPOCH_DURATION, 0));
+        assertEq(currentAction, _expectedAction(currentPeriod, 0));
+        assertEq(nextAction, _expectedAction(nextPeriod, 0));
         assertEq(addressBook.getCurrentAction(), currentAction);
         assertTrue(currentAction != nextAction);
 
@@ -215,7 +211,7 @@ contract AddressBookTest is Test {
         addressBook.register(user1, _proof(111));
 
         assertTrue(addressBook.isVerified(user1));
-        assertTrue(addressBook.isRegisteredForAction(action, user1));
+        assertTrue(addressBook.isVerifiedForAction(action, user1));
     }
 
     function testIsVerifiedIsPeriodScopedAfterPeriodRollover() public {
@@ -229,7 +225,7 @@ contract AddressBookTest is Test {
         _warpToNextPeriod();
 
         assertFalse(addressBook.isVerified(user1));
-        assertTrue(addressBook.isRegisteredForAction(action, user1));
+        assertTrue(addressBook.isVerifiedForAction(action, user1));
     }
 
     function testRegisterNextPeriod() public {
@@ -242,7 +238,7 @@ contract AddressBookTest is Test {
         addressBook.registerNextPeriod(user1, _proof(222));
 
         assertFalse(addressBook.isVerified(user1));
-        assertTrue(addressBook.isRegisteredForAction(nextAction, user1));
+        assertTrue(addressBook.isVerifiedForAction(nextAction, user1));
 
         _warpToNextPeriod();
 
@@ -265,6 +261,23 @@ contract AddressBookTest is Test {
         vm.expectRevert(abi.encodeWithSelector(IAddressBook.PeriodOutOfRange.selector));
         vm.prank(user1);
         localAddressBook.registerNextPeriod(user1, _proof(123456));
+    }
+
+    function testRegisterRevertsWhenCurrentPeriodEndDoesNotFitUint64() public {
+        MockWorldIDVerifier localVerifier = new MockWorldIDVerifier();
+        AddressBook implementation = new AddressBook();
+
+        bytes memory initData =
+            abi.encodeWithSelector(AddressBook.initialize.selector, address(localVerifier), RP_ID, ISSUER_SCHEMA_ID, 1);
+
+        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
+        AddressBook localAddressBook = AddressBook(address(proxy));
+
+        vm.warp(type(uint64).max);
+
+        vm.expectRevert(abi.encodeWithSelector(IAddressBook.PeriodOutOfRange.selector));
+        vm.prank(user1);
+        localAddressBook.register(user1, _proof(123457));
     }
 
     function testRegisterRevertsWhenExpiresBeforeCurrentPeriodEnd() public {
@@ -430,7 +443,7 @@ contract AddressBookTest is Test {
         addressBook.updateWorldIDVerifier(address(newVerifier));
         verifier = newVerifier;
 
-        uint256 updatedAction = _expectedAction(currentPeriod, EPOCH_DURATION, 1);
+        uint256 updatedAction = _expectedAction(currentPeriod, 1);
 
         assertEq(addressBook.getWorldIDVerifier(), address(newVerifier));
         assertEq(addressBook.getCurrentAction(), updatedAction);
@@ -441,7 +454,7 @@ contract AddressBookTest is Test {
         addressBook.register(user1, _proof(1_007));
 
         assertTrue(addressBook.isVerified(user1));
-        assertTrue(addressBook.isRegisteredForAction(updatedAction, user1));
+        assertTrue(addressBook.isVerifiedForAction(updatedAction, user1));
     }
 
     function testUpdateWorldIDVerifierInvalidatesNextPeriodRegistration() public {
@@ -498,7 +511,7 @@ contract AddressBookTest is Test {
         uint64 newSchemaId = 99;
         addressBook.updateIssuerSchemaId(newSchemaId);
 
-        uint256 updatedAction = _expectedAction(currentPeriod, EPOCH_DURATION, 1);
+        uint256 updatedAction = _expectedAction(currentPeriod, 1);
 
         assertEq(addressBook.getIssuerSchemaId(), newSchemaId);
         assertEq(addressBook.getCurrentAction(), updatedAction);
@@ -509,7 +522,7 @@ contract AddressBookTest is Test {
         addressBook.register(user1, _proof(1_004));
 
         assertTrue(addressBook.isVerified(user1));
-        assertTrue(addressBook.isRegisteredForAction(updatedAction, user1));
+        assertTrue(addressBook.isVerifiedForAction(updatedAction, user1));
     }
 
     function testUpdateIssuerSchemaIdInvalidatesNextPeriodRegistration() public {
@@ -562,7 +575,7 @@ contract AddressBookTest is Test {
         addressBook.updateEpochDuration(UPDATED_EPOCH_DURATION);
 
         uint64 updatedPeriod = uint64(block.timestamp / UPDATED_EPOCH_DURATION);
-        uint256 updatedAction = _expectedAction(updatedPeriod, UPDATED_EPOCH_DURATION, 1);
+        uint256 updatedAction = _expectedAction(updatedPeriod, 1);
 
         assertEq(addressBook.getCurrentPeriod(), updatedPeriod);
         assertEq(addressBook.getCurrentAction(), updatedAction);
@@ -573,6 +586,6 @@ contract AddressBookTest is Test {
         addressBook.register(user1, _proof(1_002));
 
         assertTrue(addressBook.isVerified(user1));
-        assertTrue(addressBook.isRegisteredForAction(updatedAction, user1));
+        assertTrue(addressBook.isVerifiedForAction(updatedAction, user1));
     }
 }

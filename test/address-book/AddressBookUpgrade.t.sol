@@ -82,7 +82,7 @@ contract AddressBookUpgradeTest is Test {
         addressBook.register(user1, _proof(111));
 
         assertTrue(addressBook.isVerified(user1));
-        assertTrue(addressBook.isRegisteredForAction(currentAction, user1));
+        assertTrue(addressBook.isVerifiedForAction(currentAction, user1));
 
         AddressBookV2Mock implementationV2 = new AddressBookV2Mock();
         addressBook.upgradeToAndCall(address(implementationV2), "");
@@ -90,7 +90,7 @@ contract AddressBookUpgradeTest is Test {
         AddressBookV2Mock upgraded = AddressBookV2Mock(address(addressBook));
 
         assertTrue(upgraded.isVerified(user1));
-        assertTrue(upgraded.isRegisteredForAction(currentAction, user1));
+        assertTrue(upgraded.isVerifiedForAction(currentAction, user1));
         assertEq(upgraded.getWorldIDVerifier(), address(verifier));
         assertEq(upgraded.getEpochDuration(), EPOCH_DURATION);
         assertEq(upgraded.getRpId(), RP_ID);

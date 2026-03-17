@@ -126,7 +126,7 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IAddressBook
-    function isRegisteredForAction(uint256 action, address account) external view virtual onlyProxy returns (bool) {
+    function isVerifiedForAction(uint256 action, address account) external view virtual onlyProxy returns (bool) {
         return _actionAddressRegistered[action][account];
     }
 
@@ -186,8 +186,8 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
             revert AddressAlreadyRegistered(account, action);
         }
 
-        uint256 periodEnd = _getPeriodEndTimestamp(targetPeriod);
-        if (uint256(proof.expiresAtMin) < periodEnd) {
+        uint64 periodEnd = _getPeriodEndTimestamp(targetPeriod);
+        if (proof.expiresAtMin < periodEnd) {
             revert ExpirationBeforePeriodEnd(proof.expiresAtMin, periodEnd);
         }
 
@@ -227,17 +227,20 @@ contract AddressBook is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
      * @param period The target period index.
      * @return The period end boundary in seconds since the Unix epoch.
      */
-    function _getPeriodEndTimestamp(uint64 period) internal view virtual returns (uint256) {
-        return (uint256(period) + 1) * _epochDuration;
+    function _getPeriodEndTimestamp(uint64 period) internal view virtual returns (uint64) {
+        uint256 periodEnd = (uint256(period) + 1) * _epochDuration;
+        if (periodEnd > type(uint64).max) revert PeriodOutOfRange();
+
+        return uint64(periodEnd);
     }
 
     /**
      * @notice Computes the action for a period as a field element.
-     * @dev Hashes `abi.encodePacked(uint256(period), _epochDuration, _registrationVersion)` and reduces via `>> 8`
+     * @dev Hashes `abi.encodePacked(period, _registrationVersion)` and reduces via `>> 8`
      * to fit the field.
      */
     function _getActionForPeriod(uint64 period) internal view virtual returns (uint256) {
-        return abi.encodePacked(uint256(period), _epochDuration, _registrationVersion).hashToField();
+        return abi.encodePacked(period, _registrationVersion).hashToField();
     }
 
     /**

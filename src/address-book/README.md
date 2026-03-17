@@ -2,7 +2,7 @@
 
 `AddressBook` is a period-scoped cache for World ID proof verification results.
 
-Each deployment acts as its own relying party. The contract fixes the `rpId`, derives the valid World ID action for each epoch, verifies a proof once, and then stores whether an address is valid for that period. Consumers can then check `isVerified(account)` instead of re-verifying a full proof on every integration path.
+Each deployment acts as its own relying party. The contract fixes the `rpId`, derives the valid World ID action for each epoch, verifies a proof once, and then stores whether an address is valid for that period. Consumers can then check `isVerified(account)` for the current period or `isVerifiedForAction(action, account)` for an explicit action instead of re-verifying a full proof on every integration path.
 
 That makes the contract useful when an application needs:
 

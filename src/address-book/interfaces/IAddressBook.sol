@@ -32,7 +32,7 @@ interface IAddressBook {
     /// @notice Thrown when `epochDuration` is zero.
     error InvalidEpochDuration();
 
-    /// @notice Thrown when computed period does not fit into `uint64`.
+    /// @notice Thrown when a computed period boundary does not fit into `uint64`.
     error PeriodOutOfRange();
 
     /// @notice Thrown when `register` is called with the zero address as `account`.
@@ -116,7 +116,7 @@ interface IAddressBook {
     /**
      * @notice Raw lookup for an explicit action.
      */
-    function isRegisteredForAction(uint256 action, address account) external view returns (bool);
+    function isVerifiedForAction(uint256 action, address account) external view returns (bool);
 
     /**
      * @notice Returns the currently active period index.
