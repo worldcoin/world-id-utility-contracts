@@ -6,21 +6,26 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 contract WIP101Example is IWIP101, ERC165 {
-    // bytes4(keccak256("verifyRpRequest(uint8,uint256,uint64,uint64,uint256)"))
-    bytes4 internal constant MAGICVALUE = 0xc97c0bca;
+    // bytes4(keccak256("verifyRpRequest(uint8,uint256,uint64,uint64,uint256,bytes)"))
+    bytes4 internal constant MAGICVALUE = 0x35dbc8de;
 
     uint8 internal constant EXPECTED_VERSION = 1;
+
+    uint8 internal constant EXPECTED_ACTION_ATTR = 3;
 
     uint256 constant EXPECTED_ACTION = uint256(keccak256(abi.encodePacked("vote1", uint64(3)))) >> 8;
 
     mapping(uint256 => bool) public usedNonces;
 
     // @inheritdoc IWIP101
-    function verifyRpRequest(uint8 version, uint256 nonce, uint64 createdAt, uint64 expiresAt, uint256 action)
-        external
-        view
-        returns (bytes4 magicValue)
-    {
+    function verifyRpRequest(
+        uint8 version,
+        uint256 nonce,
+        uint64 createdAt,
+        uint64 expiresAt,
+        uint256 action,
+        bytes calldata data
+    ) external view returns (bytes4 magicValue) {
         if (version != EXPECTED_VERSION) {
             revert InvalidRequest();
         }
@@ -37,7 +42,14 @@ contract WIP101Example is IWIP101, ERC165 {
             revert InvalidRequest();
         }
 
-        if (action != EXPECTED_ACTION) {
+        // This is an example of how we'd use the arbitrary data to perform more comprehensive checks
+        if (uint8(data[0]) != EXPECTED_ACTION_ATTR) {
+            revert InvalidRequest();
+        }
+
+        uint256 expected_action = uint256(keccak256(abi.encodePacked("vote1", data))) >> 8;
+
+        if (action != expected_action) {
             revert InvalidRequest();
         }
 

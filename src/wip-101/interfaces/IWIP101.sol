@@ -8,6 +8,9 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
  *   RP Signature Verification Method for Smart Contracts.
  */
 interface IWIP101 is IERC165 {
+    /**
+     * @dev The RP request is not valid.
+     */
     error InvalidRequest();
 
     /**
@@ -18,10 +21,16 @@ interface IWIP101 is IERC165 {
      * @param createdAt Creation timestamp of the request
      * @param expiresAt Expiration timestamp specified for the request
      * @param action Provided action for the request. Importantly, this is already a hashed
+     * @param data Arbitrary data useful for the verification.
      *  action as a field element.
+     * @return magicValue The expected magic value when the signature is valid. Reverts otherwise.
      */
-    function verifyRpRequest(uint8 version, uint256 nonce, uint64 createdAt, uint64 expiresAt, uint256 action)
-        external
-        view
-        returns (bytes4 magicValue);
+    function verifyRpRequest(
+        uint8 version,
+        uint256 nonce,
+        uint64 createdAt,
+        uint64 expiresAt,
+        uint256 action,
+        bytes calldata data
+    ) external view returns (bytes4 magicValue);
 }
