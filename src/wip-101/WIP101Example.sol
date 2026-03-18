@@ -13,8 +13,6 @@ contract WIP101Example is IWIP101, ERC165 {
 
     uint8 internal constant EXPECTED_ACTION_ATTR = 3;
 
-    uint256 constant EXPECTED_ACTION = uint256(keccak256(abi.encodePacked("vote1", uint64(3)))) >> 8;
-
     mapping(uint256 => bool) public usedNonces;
 
     // @inheritdoc IWIP101
@@ -34,7 +32,7 @@ contract WIP101Example is IWIP101, ERC165 {
             revert InvalidRequest();
         }
 
-        if (createdAt > block.timestamp || createdAt > block.timestamp - 15 minutes) {
+        if (createdAt > block.timestamp || createdAt < block.timestamp - 15 minutes) {
             revert InvalidRequest();
         }
 
@@ -58,11 +56,13 @@ contract WIP101Example is IWIP101, ERC165 {
 
     /// @inheritdoc ERC165
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
-        return interfaceId == type(IWIP101).interfaceId;
+        return interfaceId == type(IWIP101).interfaceId || super.supportsInterface(interfaceId);
     }
 
     /**
-     * @dev This would be the action that consumes and verifies the World ID Proof, we invalidate the nonce.
+     * @dev This would be the action that consumes and verifies the World ID Proof, after the proof
+     * is verified, we invalidate the nonce. Note this would normally verify the proof which prevents DDoS
+     * on nonces.
      * @param nonce The used nonce
      */
     function executeAction(uint256 nonce) external {

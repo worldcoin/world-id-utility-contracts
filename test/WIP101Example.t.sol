@@ -20,7 +20,7 @@ contract WIP101ExampleTest is Test {
     }
 
     function _validCreatedAt() internal view returns (uint64) {
-        return uint64(block.timestamp - 16 minutes);
+        return uint64(block.timestamp - 1 minutes);
     }
 
     function _validExpiresAt() internal view returns (uint64) {
