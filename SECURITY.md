@@ -12,7 +12,7 @@ _Tools For Humanity_ manages the bug bounty program on behalf of the World Found
 
 ### 2. (Not bounty-eligible) Security mailing list `security@world.org`
 
-We also accept vulnerability reports in multiple languages via email at [security@world.org](mailto:security@world.org). If reporting via email, please encrypt the content and attachments using Worldcoin PSIRT’s PGP Key (please see [https://worldcoin.org/pgp-key.txt](https://worldcoin.org/pgp-key.txt) or check [https://world.org/.well-known/security.txt](https://worldcoin.org/.well-known/security.txt) for more info). The current fingerprint for this ECC curve25519 key is `4528 FBB5 940D F849 BCA9  705B 8ADC FE8F 2456 585B`.
+We also accept vulnerability reports in multiple languages via email at [security@world.org](mailto:security@world.org). If reporting via email, please encrypt the content and attachments using Worldcoin PSIRT’s PGP Key (please see [https://world.org/pgp-key.txt](https://world.org/pgp-key.txt) or check [https://world.org/.well-known/security.txt](https://worldcoin.org/.well-known/security.txt) for more info). The current fingerprint for this ECC curve25519 key is `4528 FBB5 940D F849 BCA9  705B 8ADC FE8F 2456 585B`.
 
 Please include the following details in your report (if applicable):
 
