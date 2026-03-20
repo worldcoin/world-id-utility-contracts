@@ -5,7 +5,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 /**
  * @dev Interface of the WIP-101 standard for World ID,
- *   RP Signature Verification Method for Smart Contracts.
+ *   RP Request Authorization Method for Smart Contracts.
  */
 interface IWIP101 is IERC165 {
     /**
@@ -17,7 +17,7 @@ interface IWIP101 is IERC165 {
      * @notice Verifies a World ID Proof Request is authorized by the RP.
      * @dev Should return whether the RP request is valid and should be honored. The `rpId` is implicit in this request,
      *  any contract implementing this interface will be pointed to in the `RpRegistry`.
-     * @param version The version determines the format of the signature
+     * @param version The version determines the format of the request and the signature.
      * @param nonce Unique nonce for this request
      * @param createdAt Creation timestamp of the request
      * @param expiresAt Expiration timestamp specified for the request
@@ -25,9 +25,10 @@ interface IWIP101 is IERC165 {
      *  action as a field element.
      * @param data Arbitrary data useful for the verification.
      * @return magicValue The expected magic value when the signature is valid. Reverts otherwise.
-     * @custom:requirement MUST return the bytes4 magic value 0x35dbc8de when function passes.
-     * @custom:requirement MUST NOT modify state (view modifier for solc > 0.5)
-     * @custom:requirement MUST allow external calls
+     *
+     * MUST return the bytes4 magic value 0x35dbc8de when function passes (function selector for verifyRpRequest).
+     * MUST NOT modify state (view modifier for solc > 0.5)
+     * MUST allow external calls
      */
     function verifyRpRequest(
         uint8 version,
