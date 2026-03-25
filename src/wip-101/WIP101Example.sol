@@ -36,7 +36,7 @@ contract WIP101Example is IWIP101, ERC165 {
             revert InvalidRequest(102);
         }
 
-        if (expiresAt > block.timestamp + 15 minutes) {
+        if (expiresAt < block.timestamp || expiresAt > block.timestamp + 15 minutes) {
             revert InvalidRequest(103);
         }
 
