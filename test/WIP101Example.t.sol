@@ -40,7 +40,7 @@ contract WIP101ExampleTest is Test {
 
     function testFuzz_revert_wrongVersion(uint8 version) public {
         vm.assume(version != VERSION);
-        vm.expectRevert(IWIP101.InvalidRequest.selector);
+        vm.expectRevert(abi.encodeWithSelector(IWIP101.InvalidRequest.selector, 100));
         example.verifyRpRequest(
             version, NONCE, _validCreatedAt(), _validExpiresAt(), _actionFor(VALID_DATA), VALID_DATA
         );
@@ -49,7 +49,7 @@ contract WIP101ExampleTest is Test {
     function test_revert_usedNonce() public {
         example.executeAction(NONCE);
 
-        vm.expectRevert(IWIP101.InvalidRequest.selector);
+        vm.expectRevert(abi.encodeWithSelector(IWIP101.InvalidRequest.selector, 101));
         example.verifyRpRequest(
             VERSION, NONCE, _validCreatedAt(), _validExpiresAt(), _actionFor(VALID_DATA), VALID_DATA
         );
@@ -57,26 +57,26 @@ contract WIP101ExampleTest is Test {
 
     function test_revert_createdAt_inFuture() public {
         uint64 futureCreatedAt = uint64(block.timestamp + 1);
-        vm.expectRevert(IWIP101.InvalidRequest.selector);
+        vm.expectRevert(abi.encodeWithSelector(IWIP101.InvalidRequest.selector, 102));
         example.verifyRpRequest(VERSION, NONCE, futureCreatedAt, _validExpiresAt(), _actionFor(VALID_DATA), VALID_DATA);
     }
 
     function test_revert_expiresAt_tooFarInFuture() public {
         uint64 farExpiry = uint64(block.timestamp + 16 minutes);
-        vm.expectRevert(IWIP101.InvalidRequest.selector);
+        vm.expectRevert(abi.encodeWithSelector(IWIP101.InvalidRequest.selector, 103));
         example.verifyRpRequest(VERSION, NONCE, _validCreatedAt(), farExpiry, _actionFor(VALID_DATA), VALID_DATA);
     }
 
     function test_revert_wrongAction() public {
         uint256 wrongAction = uint256(keccak256(abi.encodePacked("vote2", VALID_DATA))) >> 8;
-        vm.expectRevert(IWIP101.InvalidRequest.selector);
+        vm.expectRevert(abi.encodeWithSelector(IWIP101.InvalidRequest.selector, 105));
         example.verifyRpRequest(VERSION, NONCE, _validCreatedAt(), _validExpiresAt(), wrongAction, VALID_DATA);
     }
 
     function test_revert_actionMismatchesData() public {
         bytes memory otherData = hex"030102";
         uint256 actionFromOtherData = _actionFor(otherData);
-        vm.expectRevert(IWIP101.InvalidRequest.selector);
+        vm.expectRevert(abi.encodeWithSelector(IWIP101.InvalidRequest.selector, 105));
         example.verifyRpRequest(VERSION, NONCE, _validCreatedAt(), _validExpiresAt(), actionFromOtherData, VALID_DATA);
     }
 
@@ -86,7 +86,7 @@ contract WIP101ExampleTest is Test {
 
     function testFuzz_executeAction_blocksVerify(uint256 nonce) public {
         example.executeAction(nonce);
-        vm.expectRevert(IWIP101.InvalidRequest.selector);
+        vm.expectRevert(abi.encodeWithSelector(IWIP101.InvalidRequest.selector, 101));
         example.verifyRpRequest(
             VERSION, nonce, _validCreatedAt(), _validExpiresAt(), _actionFor(VALID_DATA), VALID_DATA
         );

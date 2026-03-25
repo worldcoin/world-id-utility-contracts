@@ -25,30 +25,30 @@ contract WIP101Example is IWIP101, ERC165 {
         bytes calldata data
     ) external view returns (bytes4 magicValue) {
         if (version != EXPECTED_VERSION) {
-            revert InvalidRequest();
+            revert InvalidRequest(100);
         }
 
         if (usedNonces[nonce]) {
-            revert InvalidRequest();
+            revert InvalidRequest(101);
         }
 
         if (createdAt > block.timestamp || createdAt < block.timestamp - 15 minutes) {
-            revert InvalidRequest();
+            revert InvalidRequest(102);
         }
 
         if (expiresAt > block.timestamp + 15 minutes) {
-            revert InvalidRequest();
+            revert InvalidRequest(103);
         }
 
         // This is an example of how we'd use the arbitrary data to perform more comprehensive checks
         if (uint8(data[0]) != EXPECTED_ACTION_ATTR) {
-            revert InvalidRequest();
+            revert InvalidRequest(104);
         }
 
         uint256 expected_action = uint256(keccak256(abi.encodePacked("vote1", data))) >> 8;
 
         if (action != expected_action) {
-            revert InvalidRequest();
+            revert InvalidRequest(105);
         }
 
         return MAGICVALUE;
