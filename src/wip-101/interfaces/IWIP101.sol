@@ -11,7 +11,7 @@ interface IWIP101 is IERC165 {
     /**
      * @dev The RP request is not valid. The code may be used to provide additional debugging information.
      */
-    error InvalidRequest(uint256 code);
+    error RpInvalidRequest(uint256 code);
 
     /**
      * @notice Verifies a World ID Proof Request is authorized by the RP.
