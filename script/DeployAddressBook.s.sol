@@ -8,7 +8,6 @@ import {Deploy} from "script/Deploy.s.sol";
 
 /// @title DeployAddressBook
 /// @notice Deploys the AddressBook proxy with atomic initialization via CREATE2.
-/// @dev Usage: just deploy-address-book staging --private-key $PK
 contract DeployAddressBook is Deploy {
     address public addressBookAddress;
     address public addressBookImplAddress;
