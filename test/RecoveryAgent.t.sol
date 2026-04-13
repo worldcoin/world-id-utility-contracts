@@ -6,7 +6,7 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
-import {RecoveryAgent} from "src/RecoveryAgent.sol";
+import {RecoveryAgent} from "src/recovery-agent/RecoveryAgent.sol";
 
 contract RecoveryAgentTest is Test {
     RecoveryAgent internal agent;
