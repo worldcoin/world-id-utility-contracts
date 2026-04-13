@@ -41,7 +41,7 @@ contract WIP101Example is IWIP101, ERC165 {
         }
 
         // This is an example of how we'd use the arbitrary data to perform more comprehensive checks
-        if (uint8(data[0]) != EXPECTED_ACTION_ATTR) {
+        if (data.length == 0 || uint8(data[0]) != EXPECTED_ACTION_ATTR) {
             revert RpInvalidRequest(104);
         }
 
@@ -67,5 +67,8 @@ contract WIP101Example is IWIP101, ERC165 {
      */
     function executeAction(uint256 nonce) external {
         usedNonces[nonce] = true;
+
+        // example:
+        // WorldIDVerifier.verify()
     }
 }
