@@ -1,0 +1,10 @@
+{
+  "addressBook": {
+    "implementation": "0x26308fde2d4732426A8cb9c237D5f48544401ed3",
+    "proxy": "0x45A12A8ff64CDae72CDE4d7b86203047A2319312"
+  },
+  "chainId": 480,
+  "commitSha": "52620bb43bc242481022eddd6b651a4c20468d33",
+  "deployer": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+  "timestamp": 1776097321
+}
