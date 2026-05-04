@@ -13,16 +13,12 @@ contract DeployAddressBook is Deploy {
     address public addressBookImplAddress;
 
     function _run(string memory config) internal override {
-        bytes32 salt = _getSalt(config, "addressBook", "SALT_ADDRESS_BOOK");
-
         address worldIDVerifier = vm.parseJsonAddress(config, ".addressBook.worldIDVerifier");
         uint64 rpId = uint64(vm.parseJsonUint(config, ".addressBook.rpId"));
         uint64 issuerSchemaId = uint64(vm.parseJsonUint(config, ".addressBook.issuerSchemaId"));
         uint64 epochDuration = uint64(vm.parseJsonUint(config, ".addressBook.epochDuration"));
 
         console2.log("--- AddressBook ---");
-        console2.log("  proxy salt:       ");
-        console2.logBytes32(salt);
 
         AddressBook implementation = new AddressBook();
         addressBookImplAddress = address(implementation);
@@ -30,12 +26,8 @@ contract DeployAddressBook is Deploy {
 
         bytes memory initData =
             abi.encodeCall(AddressBook.initialize, (worldIDVerifier, rpId, issuerSchemaId, epochDuration));
-        bytes memory initCode =
-            abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(addressBookImplAddress, initData));
-        console2.log("  proxy init code hash:");
-        console2.logBytes32(keccak256(initCode));
 
-        ERC1967Proxy proxy = new ERC1967Proxy{salt: salt}(addressBookImplAddress, initData);
+        ERC1967Proxy proxy = new ERC1967Proxy(addressBookImplAddress, initData);
         addressBookAddress = address(proxy);
         console2.log("  proxy:            ", addressBookAddress);
     }
